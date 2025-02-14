@@ -152,13 +152,11 @@ jobs:
 
           sudo chmod -R 777 dist
           
-          tar -czf dist/php-$PHPVER-cli-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
-          tar -czf dist/php-$PHPVER-micro-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ micro.sfx
-          if [ "${{ matrix.php-version }}" == "8.4" ] && [ "${{ matrix.runner }}" == "ubuntu-latest" ]; then
-            cp -r buildroot/license dist/
-            cp buildroot/build-extensions.json dist/
-            cp buildroot/build-libraries.json dist/
-            echo "# Note\n\nCurrent distribution uses extensions:\n\n${{ steps.process-env.outputs.EXTENSIONS }}\n\nUsing compile command:\n\n  bin/spc build --build-cli --build-micro ${{ steps.process-env.outputs.EXTENSIONS }} --debug --with-upx-pack" > dist/README.txt
+          tar -czf dist/php-${{ matrix.version }}-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
+          
+          if [ "${{ matrix.runner }}" == "ubuntu-latest" ]; then
+            mv tmp_dist/micro.sfx dist/php${{ matrix.version }}.micro.sfx.zip
+            cd dist && zip php${{ matrix.version }}.micro.sfx.zip ./php${{ matrix.version }}.micro.sfx
           fi
 
       # Deploy
