@@ -18,7 +18,6 @@ jobs:
         runner:
           - "ubuntu-latest"
           - "macos-13"
-          - "ubuntu-20.04"
           - "macos-14"
         combination:
           - bulk
