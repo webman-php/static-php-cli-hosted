@@ -123,7 +123,7 @@ jobs:
             fi
           fi
           
-          ${{ steps.process-env.outputs.CMD }} build --build-cli --build-micro ${{ steps.process-env.outputs.EXTENSIONS }} --with-libs="freetype,libjpeg,libwebp" -I "opcache.enable_cli=1" -I "opcache.jit_buffer_size=32M" -I "apc.enable_cli=1" -I "memory_limit=256M" -I "openssl.cafile=/etc/ssl/certs/ca-certificates.crt" --debug $UPX
+          ${{ steps.process-env.outputs.CMD }} build --build-cli --build-micro ${{ steps.process-env.outputs.EXTENSIONS }} -I "opcache.enable_cli=1" -I "opcache.jit_buffer_size=32M" -I "apc.enable_cli=1" -I "memory_limit=256M" -I "openssl.cafile=/etc/ssl/certs/ca-certificates.crt" --debug $UPX
 
           # Copy out from buildroot, because docker build has different permission
           mkdir -p tmp_dist/
