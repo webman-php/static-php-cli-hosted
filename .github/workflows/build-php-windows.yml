@@ -111,8 +111,7 @@ jobs:
       - run: cd buildroot/bin && tar -zcvf "php-${{ matrix.version }}-windows-x86_64.tar.gz" ./php.exe && rm ./php.exe
 
       # Upload tar
-      - if: ${{ inputs.build-cli == true }}
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: php-${{ matrix.version }}
           path: buildroot/bin
