@@ -22,8 +22,6 @@ jobs:
           - "macos-14"
         combination:
           - minimal
-          - bulk
-          - common
     steps:
       - name: "Process env string"
         id: process-env
@@ -125,13 +123,12 @@ jobs:
             fi
           fi
           
-          ${{ steps.process-env.outputs.CMD }} build --build-cli --build-micro --build-fpm ${{ steps.process-env.outputs.EXTENSIONS }} --debug $UPX
+          ${{ steps.process-env.outputs.CMD }} build --build-cli --build-micro ${{ steps.process-env.outputs.EXTENSIONS }} --debug $UPX
 
           # Copy out from buildroot, because docker build has different permission
           mkdir -p tmp_dist/
           cp buildroot/bin/php tmp_dist/
           cp buildroot/bin/micro.sfx tmp_dist/
-          cp buildroot/bin/php-fpm tmp_dist/
 
           # UPX outside for linux-aarch64
           if [ "${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}" = "linux-aarch64" ]; then
@@ -144,7 +141,6 @@ jobs:
             SFX_SIZE=$(readelf -l ../tmp_dist/micro.sfx | awk '/LOAD|GNU_STACK/ {getline; print $1, $2, $3, $4, $6, $7}' | sed -n '2p' | awk '{print $1}')
             head -c $(printf "%d" $SFX_SIZE) ../tmp_dist/micro.sfx > ../tmp_dist/micro.sfx.new
             mv ../tmp_dist/micro.sfx.new ../tmp_dist/micro.sfx
-            ./upx --best ../tmp_dist/php-fpm
             cd ..
           fi
 
@@ -158,12 +154,11 @@ jobs:
           
           tar -czf dist/php-$PHPVER-cli-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
           tar -czf dist/php-$PHPVER-micro-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ micro.sfx
-          tar -czf dist/php-$PHPVER-fpm-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php-fpm
           if [ "${{ matrix.php-version }}" == "8.4" ] && [ "${{ matrix.runner }}" == "ubuntu-latest" ]; then
             cp -r buildroot/license dist/
             cp buildroot/build-extensions.json dist/
             cp buildroot/build-libraries.json dist/
-            echo "# Note\n\nCurrent distribution uses extensions:\n\n${{ steps.process-env.outputs.EXTENSIONS }}\n\nUsing compile command:\n\n  bin/spc build --build-cli --build-micro --build-fpm ${{ steps.process-env.outputs.EXTENSIONS }} --debug --with-upx-pack" > dist/README.txt
+            echo "# Note\n\nCurrent distribution uses extensions:\n\n${{ steps.process-env.outputs.EXTENSIONS }}\n\nUsing compile command:\n\n  bin/spc build --build-cli --build-micro ${{ steps.process-env.outputs.EXTENSIONS }} --debug --with-upx-pack" > dist/README.txt
           fi
 
       # Deploy
@@ -171,7 +166,7 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
           ARGS: "-rltgoDzvO"
-          SOURCE: "tmp_dist/"
+          SOURCE: "dist/"
           REMOTE_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
           REMOTE_PORT: ${{ secrets.DEPLOY_SERVER_PORT }}
           REMOTE_USER: ${{ secrets.DEPLOY_SERVER_USER }}
