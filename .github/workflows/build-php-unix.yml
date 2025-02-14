@@ -167,8 +167,7 @@ jobs:
           fi
 
       # Deploy
-      - if: ${{ inputs.build-cli == true }}
-        uses: easingthemes/ssh-deploy@v5.1.0
+      - uses: easingthemes/ssh-deploy@v5.1.0
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
           ARGS: "-rltgoDzvO"
