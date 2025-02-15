@@ -108,11 +108,12 @@ jobs:
         run: |
           echo -e "# Note\n\nCurrent distribution uses extensions:\n\n${{ steps.process-env.outputs.EXTENSIONS }}\n\nUsing compile command:\n\n  bin/spc build --build-cli \"${{ steps.process-env.outputs.EXTENSIONS }}\" --debug --with-upx-pack" > dist/README.txt
 
-      - run: cd buildroot/bin && tar -zcvf "php-${{ matrix.version }}-windows-x86_64.tar.gz" ./php.exe && rm ./php.exe
+      - run: mkdir dist2 && cp buildroot/bin/php.exe dist2/ &&  cd dist2 && tar -zcvf "php-${{ matrix.version }}-windows-x86_64.tar.gz" ./php.exe && rm ./php.exe
 
       # Upload tar
-      - uses: actions/upload-artifact@v4
+      - if: ${{ inputs.build-cli == true }}
+        uses: actions/upload-artifact@v4
         with:
           name: php-${{ matrix.version }}
-          path: buildroot/bin
+          path: dist2
           
