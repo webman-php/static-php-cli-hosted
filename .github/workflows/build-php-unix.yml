@@ -152,11 +152,11 @@ jobs:
 
           sudo chmod -R 777 dist
           
-          tar -czf dist/php-${{ matrix.version }}-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
+          tar -czf dist/php-${{ matrix.php-version }}-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
           
           if [ "${{ matrix.runner }}" == "ubuntu-latest" ]; then
-            mv tmp_dist/micro.sfx dist/php${{ matrix.version }}.micro.sfx.zip
-            cd dist && zip php${{ matrix.version }}.micro.sfx.zip ./php${{ matrix.version }}.micro.sfx
+            mv tmp_dist/micro.sfx dist/php${{ matrix.php-version }}.micro.sfx.zip
+            cd dist && zip php${{ matrix.php-version }}.micro.sfx.zip ./php${{ matrix.php-version }}.micro.sfx
           fi
 
       # Deploy
