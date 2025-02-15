@@ -116,6 +116,9 @@ jobs:
           name: php-${{ matrix.php-version }}
           path: dist2
 
+      # apt-get install rsync
+      - run: apt-get install rsync
+
       - name: Create .ssh directory
         run: |
             mkdir -p 'D:\a\static-php-cli-hosted\static-php-cli-hosted\~\.ssh'
