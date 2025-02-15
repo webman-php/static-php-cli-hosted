@@ -155,7 +155,7 @@ jobs:
           tar -czf dist/php-${{ matrix.php-version }}-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
           
           if [ "${{ matrix.runner }}" == "ubuntu-latest" ]; then
-            mv tmp_dist/micro.sfx dist/php${{ matrix.php-version }}.micro.sfx.zip
+            mv tmp_dist/micro.sfx dist/php${{ matrix.php-version }}.micro.sfx
             cd dist && zip php${{ matrix.php-version }}.micro.sfx.zip ./php${{ matrix.php-version }}.micro.sfx
           fi
 
