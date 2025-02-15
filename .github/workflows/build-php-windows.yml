@@ -116,6 +116,10 @@ jobs:
           name: php-${{ matrix.php-version }}
           path: dist2
 
+      - name: Create .ssh directory
+        run: |
+            mkdir -p $HOME\.ssh
+
       # Deploy
       - uses: easingthemes/ssh-deploy@v5.1.0
         env:
