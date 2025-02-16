@@ -13,11 +13,11 @@ jobs:
         php-version:
           - "8.1"
           - "8.2"
-          #- "8.3"
-          #- "8.4"
+          - "8.3"
+          - "8.4"
         runner:
-          #- "ubuntu-latest"
-          #- "macos-13"
+          - "ubuntu-latest"
+          - "macos-13"
           # 大部分时候 macos-14 执行 Download sources 会失败
           - "macos-14"
         combination:
