@@ -42,6 +42,10 @@ jobs:
                   Add-Content -Path $env:GITHUB_OUTPUT -Value "CMD=bin/spc"
               }
           }
+
+      - run: |
+          choco install rsync -y
+        shell: powershell
             
       - name: "Checkout remote"
         if: github.repository != 'crazywhalecc/static-php-cli'
@@ -115,9 +119,6 @@ jobs:
         with:
           name: php-${{ matrix.php-version }}
           path: dist2
-
-      # apt-get install rsync
-      - run: apt-get install rsync
 
       - name: Create .ssh directory
         run: |
