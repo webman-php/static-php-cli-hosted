@@ -18,6 +18,7 @@ jobs:
         runner:
           #- "ubuntu-latest"
           #- "macos-13"
+          # 大部分时候 macos-14 执行 Download sources 会失败
           - "macos-14"
         combination:
           - bulk
