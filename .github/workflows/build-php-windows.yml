@@ -124,13 +124,13 @@ jobs:
         run: |
             mkdir -p 'D:\a\static-php-cli-hosted\static-php-cli-hosted\~\.ssh'
 
-      # Deploy
-      - uses: easingthemes/ssh-deploy@v5.1.0
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
-          SOURCE: 'dist2/'
-          REMOTE_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          REMOTE_PORT: ${{ secrets.DEPLOY_SERVER_PORT }}
-          REMOTE_USER: ${{ secrets.DEPLOY_SERVER_USER }}
-          TARGET: ${{ secrets.DEPLOY_SERVER_TARGET }}
+      # Deploy 报错 The source and destination cannot both be remote. 可能是把D:/a/... 的D:理解为主机名了
+      #- uses: easingthemes/ssh-deploy@v5.1.0
+      #  env:
+      #    SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
+      #    SOURCE: 'dist2/'
+      #    REMOTE_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+      #    REMOTE_PORT: ${{ secrets.DEPLOY_SERVER_PORT }}
+      #    REMOTE_USER: ${{ secrets.DEPLOY_SERVER_USER }}
+      #    TARGET: ${{ secrets.DEPLOY_SERVER_TARGET }}
           
