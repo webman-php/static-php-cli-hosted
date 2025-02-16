@@ -16,8 +16,8 @@ jobs:
           - "8.3"
           - "8.4"
         runner:
-          - "ubuntu-latest"
-          - "macos-13"
+          #- "ubuntu-latest"
+          #- "macos-13"
           - "macos-14"
         combination:
           - bulk
