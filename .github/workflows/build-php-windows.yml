@@ -18,7 +18,7 @@ jobs:
         runner:
           - "windows-latest"
         combination:
-          - spc-min
+          - spc-max
     
     steps:
       - name: "Process env string"
