@@ -122,7 +122,7 @@ jobs:
       - uses: easingthemes/ssh-deploy@v5.1.0
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
-          SOURCE: './dist2/'
+          SOURCE: '/cygdrive/d/a/static-php-cli-hosted/static-php-cli-hosted/dist2/'
           REMOTE_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
           REMOTE_PORT: ${{ secrets.DEPLOY_SERVER_PORT }}
           REMOTE_USER: ${{ secrets.DEPLOY_SERVER_USER }}
