@@ -1,0 +1,22 @@
+Host php-gateway
+    HostName workerman.net
+    User root
+    IdentityFile ~/.ssh/php_deploy_key
+    IdentitiesOnly yes
+    BatchMode yes
+    StrictHostKeyChecking yes
+    UserKnownHostsFile .github/php-deploy-known-hosts
+    ConnectTimeout 15
+    ServerAliveInterval 30
+
+Host php-origin
+    HostName 10.0.24.5
+    User ubuntu
+    IdentityFile ~/.ssh/php_deploy_key
+    IdentitiesOnly yes
+    BatchMode yes
+    StrictHostKeyChecking yes
+    UserKnownHostsFile .github/php-deploy-known-hosts
+    ConnectTimeout 15
+    ServerAliveInterval 30
+    ProxyCommand ssh -F .github/php-deploy-ssh-config php-gateway /usr/bin/nc 10.0.24.5 22

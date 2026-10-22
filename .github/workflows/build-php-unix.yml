@@ -9,6 +9,7 @@ on:
         default: true
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -191,51 +192,9 @@ jobs:
   deploy:
     name: Publish verified binaries
     needs: [plan, build-release-artifacts]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: php-*
-          path: release/
-          merge-multiple: true
-      - name: Verify all archives
-        run: |
-          set -euo pipefail
-          test "$(find release -name '*.json' | wc -l)" -eq ${{ needs.plan.outputs.count }}
-          cd release
-          for checksum in *.tar.gz.sha256; do sha256sum -c "$checksum"; done
-      - name: Deploy with backups
-        uses: easingthemes/ssh-deploy@v5.1.0
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
-          ARGS: '-rltDzvO --delay-updates --backup --backup-dir=../php-backups/run-${{ github.run_id }}'
-          SOURCE: release/
-          REMOTE_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          REMOTE_PORT: ${{ secrets.DEPLOY_SERVER_PORT }}
-          REMOTE_USER: ${{ secrets.DEPLOY_SERVER_USER }}
-          TARGET: ${{ secrets.DEPLOY_SERVER_TARGET }}
-
-      - name: Verify public downloads
-        run: |
-          python3 - <<'PYTHON'
-          import json, os, time, urllib.request
-          from pathlib import Path
-          root = Path(os.environ.get('RELEASE_DIR', 'release'))
-          checksums = sorted(root.glob('*.tar.gz.sha256'))
-          assert checksums, 'No release checksums found'
-          for checksum in checksums:
-              base = checksum.name.removesuffix('.tar.gz.sha256')
-              expected = json.loads((root / (base + '.json')).read_text())
-              for attempt in range(4):
-                  try:
-                      with urllib.request.urlopen('https://download.workerman.net/php/' + checksum.name, timeout=30) as response:
-                          assert response.read().decode().strip() == checksum.read_text().strip(), base + ': public archive checksum is stale'
-                      with urllib.request.urlopen('https://download.workerman.net/php/' + base + '.json', timeout=30) as response:
-                          assert json.load(response) == expected, base + ': public PHP version metadata is stale'
-                      break
-                  except Exception:
-                      if attempt == 3:
-                          raise
-                      time.sleep(2)
-              print('Public download verified:', base, expected['php_version'])
-          PYTHON
+    uses: ./.github/workflows/deploy-php-unix.yml
+    with:
+      source-run-id: '${{ github.run_id }}'
+      expected-packages: ${{ fromJSON(needs.plan.outputs.count) }}
+    secrets:
+      DEPLOY_SERVER_SECRET_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}

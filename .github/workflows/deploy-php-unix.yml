@@ -1,0 +1,84 @@
+name: Publish static PHP
+
+on:
+  workflow_dispatch:
+    inputs:
+      source-run-id:
+        description: Build workflow run ID containing the verified php-* artifacts
+        type: string
+        required: true
+      expected-packages:
+        description: Expected package count (24 with glibc, otherwise 16)
+        type: number
+        default: 24
+        required: true
+  workflow_call:
+    inputs:
+      source-run-id:
+        type: string
+        required: true
+      expected-packages:
+        type: number
+        required: true
+    secrets:
+      DEPLOY_SERVER_SECRET_KEY:
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: static-php-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish verified binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release inputs
+        env:
+          SOURCE_RUN_ID: ${{ inputs.source-run-id }}
+          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
+        run: |
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_PACKAGES" == 16 || "$EXPECTED_PACKAGES" == 24 ]]
+      - name: Configure restricted SSH deployment
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/php_deploy_key
+          ssh-keygen -y -f ~/.ssh/php_deploy_key > ~/.ssh/php_deploy_key.pub
+          echo 'Deployment public key (safe to authorize on the PHP upload endpoints):'
+          cat ~/.ssh/php_deploy_key.pub
+          ssh-keygen -lf ~/.ssh/php_deploy_key.pub
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source-run-id }}
+          pattern: php-*
+          path: release/
+          merge-multiple: true
+      - name: Verify all archives
+        env:
+          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
+        run: |
+          set -euo pipefail
+          test "$(find release -name '*.json' | wc -l)" -eq "$EXPECTED_PACKAGES"
+          cd release
+          for checksum in *.tar.gz.sha256; do sha256sum -c "$checksum"; done
+          for branch in 8.2 8.3 8.4 8.5; do
+            chmod 755 "php$branch" "php$branch.micro.sfx"
+          done
+      - name: Upload through the PHP-only SSH endpoint
+        run: |
+          rsync -rltpz --delay-updates --timeout=300 \
+            --rsync-path=/usr/local/libexec/receive-static-php-rsync \
+            -e 'ssh -F .github/php-deploy-ssh-config' release/ php-origin:./
+      - name: Verify public downloads
+        run: python3 .github/scripts/verify-public-php.py

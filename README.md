@@ -27,7 +27,11 @@ Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
 默认勾选 `include-glibc`，额外生成 glibc 2.17 兼容的 Linux x86_64/aarch64，共 24 个组合。glibc 包以 `-glibc.tar.gz` 结尾；默认下载文件仍为 musl 全静态版。
 完整矩阵会从源码编译大量依赖，macOS 任务可能排队，需等待每个 job 的运行验证完成。
 glibc 产物还会通过 ELF 符号检查，确认所需 glibc 不高于 2.17。
-所有选定组合通过后才合并产物，使用已有 `DEPLOY_SERVER_*` secrets 上传服务器；替换的文件备份到目标目录旁的 `php-backups/run-<run_id>/`。
+所有选定组合通过后才合并产物，调用可复用的 `Publish static PHP` workflow，使用已有 `DEPLOY_SERVER_SECRET_KEY` 上传服务器。
+发布经过 `workerman.net` 连接下载机 `ubuntu@10.0.24.5`，目标固定为 `/home/www/download.workerman.net/public/php/`；不再依赖过期的 HOST、USER、PORT、TARGET secrets。
+服务器在每次上传前，将原下载目录保存到公开目录之外的 `/home/www/php-release-backups/<UTC时间>-<PID>/`。备份使用硬链接，上传使用临时文件和原子替换。
+部署公钥在网关上仅可连接下载机 SSH 端口，在下载机上仅可通过 rrsync 写入 PHP 下载目录，不能启动 shell 或删除文件。
+SSH 主机公钥固定在 `.github/php-deploy-known-hosts`，连接配置位于 `.github/php-deploy-ssh-config`。
 Actions artifacts 同时保留压缩包、SHA-256、扩展列表和版本 JSON。
 上传后会通过公开下载地址再次核对每个包的校验文件与版本 JSON，避免上传目标或缓存错误导致页面仍提供旧版本。
 macOS 使用 `macos` 文件名，同时提供兼容旧安装脚本的 `mac` 别名。
@@ -37,6 +41,10 @@ Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 以及 Windows workflow 的 `PHP_RELEASE` 映射，再执行 Run workflow。
 不要恢复以前仅按 `8.x` 缓存的 PHP 源码，以免把旧漏洞版本再次发布。
 失败时查看对应 job 的 Download/Build 日志与 `logs-*` artifact。网络等临时错误可重新运行失败任务；修改 workflow 或编译器提交后，必须重新 Run workflow，使新提交生效。发布 job 会等待全部编译通过。
+
+如果编译已通过、仅上传失败，可打开 [Actions → Publish static PHP → Run workflow](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/deploy-php-unix.yml)，
+填入原构建的 run ID 和包数量（含 glibc 为 24，否则为 16），直接重试上传，无需重新编译。产物保留 30 天。
+部署公钥可在 Configure restricted SSH deployment 步骤查看；服务器授权接收器源码位于 `.github/scripts/receive-static-php-rsync.py`。
 
 上线后检查 https://download.workerman.net/php/list 与 https://www.workerman.net/download，
 并在对应系统解压运行 `./php -n -v`、`./php -n -m`。
