@@ -41,3 +41,4 @@ Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 站点安装脚本来自 `webman-php/workerman.net` 的 `app/controller/Download.php`。
 
 编译器固定 libevent 2.1.13-stable（含 2026-07 安全修复）与 event 3.1.6，避免自动选择标记不准确的 libevent alpha 版。
+event 使用上游 Bitbucket 的 3.1.6 源码并验证 SHA-256；PECL 多版本目录压缩包会破坏 PHP 静态构建的扩展头文件生成。

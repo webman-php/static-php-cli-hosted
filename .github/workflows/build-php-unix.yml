@@ -112,13 +112,14 @@ jobs:
             --with-php=${{ matrix.php.version }} \
             --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
             --custom-url=libevent:https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz \
-            --custom-url=ext-event:https://pecl.php.net/get/event-3.1.6.tgz \
+            --custom-url=ext-event:https://bitbucket.org/osmanov/pecl-event/get/3.1.6.tar.gz \
             --for-extensions="$EXTENSIONS" --retry=5 --parallel=4
           # The target's Zig runtime is separate from the PHP extension dependencies.
           if [ '${{ matrix.target.os }}' = linux ]; then
             bin/spc download --for-packages=llvm-compiler-rt --retry=5
           fi
           echo 'f7e9383b8c0baa81b687e5b5eecc01beefaf1b19b64151d95ed61647fe7a315c  downloads/libevent-2.1.13-stable.tar.gz' | shasum -a 256 -c -
+          echo '4ac43b6ba60d762f530e941fb406e66cc17a089401c7f9a58b048a780edba44b  downloads/3.1.6.tar.gz' | shasum -a 256 -c -
           echo '${{ matrix.php.sha256 }}  downloads/php-${{ matrix.php.version }}.tar.gz' | shasum -a 256 -c -
 
       - name: Build CLI and micro
