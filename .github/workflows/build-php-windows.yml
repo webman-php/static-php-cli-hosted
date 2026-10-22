@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: crazywhalecc/static-php-cli
-          ref: 4318ef8fa32a02460ec1554746674a7bc42b49fa
+          ref: 956fa13e7c390e3127cc0343215c00491f13a835
 
       - name: "Setup PHP"
         uses: shivammathur/setup-php@v2

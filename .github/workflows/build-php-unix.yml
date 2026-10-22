@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # SPC 2.8.5 supports PHP 8.5; keep builds reproducible across reruns.
-  SPC_REF: 4318ef8fa32a02460ec1554746674a7bc42b49fa
+  # Pin maintained SPC v2, including the August 2026 libaom patch fix.
+  SPC_REF: 956fa13e7c390e3127cc0343215c00491f13a835
   EXTENSIONS: apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter
 
 jobs:
@@ -77,7 +77,12 @@ jobs:
           composer install --no-dev --no-interaction --no-progress --prefer-dist
           bin/spc doctor --auto-fix
 
-      # Do not restore the old download cache: it contained vulnerable PHP sources.
+      # A full patch version and compiler commit prevent reuse of vulnerable sources.
+      - uses: actions/cache@v4
+        with:
+          path: downloads/
+          key: security-sources-${{ env.SPC_REF }}-${{ matrix.php.version }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+
       - name: Download fresh sources
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -122,6 +127,8 @@ jobs:
             cp "dist/$BASE.tar.gz" "dist/php-${{ matrix.php.branch }}-mac-${{ matrix.target.arch }}.tar.gz"
           fi
           if [ '${{ matrix.target.os }}-${{ matrix.target.arch }}' = linux-x86_64 ]; then
+            cp "$PHP_BIN" "dist/php${{ matrix.php.branch }}"
+            (cd dist && zip "php${{ matrix.php.branch }}.zip" "php${{ matrix.php.branch }}")
             cp buildroot/bin/micro.sfx "dist/php${{ matrix.php.branch }}.micro.sfx"
             (cd dist && zip "php${{ matrix.php.branch }}.micro.sfx.zip" "php${{ matrix.php.branch }}.micro.sfx")
           fi

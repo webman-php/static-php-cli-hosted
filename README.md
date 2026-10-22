@@ -17,7 +17,7 @@ This repository is used to automatically compile static-php-cli related content 
 ## workerman.net 静态 PHP 更新
 
 实际构建入口为本仓库的 **Actions → Build Self-Hosted PHP Binary (Unix) → Run workflow**。
-`walkor/static-php-cli` 是旧的编译器 fork，本仓库直接检出上游 SPC 2.8.5 的固定提交。
+`walkor/static-php-cli` 是旧的编译器 fork，本仓库直接检出上游 维护中的 SPC v2 固定提交（含 2026-08 的 libaom 补丁修复）。
 
 当前发布版本：PHP 8.2.35、8.3.36、8.4.27、8.5.12，均包含 2026-10-21 的安全修复。
 PHP 8.1 不再构建或列入支持列表。
@@ -27,7 +27,7 @@ Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
 所有组合通过后才合并产物，使用已有 `DEPLOY_SERVER_*` secrets 上传服务器；替换的文件备份到目标目录旁的 `php-backups/run-<run_id>/`。
 Actions artifacts 同时保留压缩包、SHA-256、扩展列表和版本 JSON。
 macOS 使用 `macos` 文件名，同时提供兼容旧安装脚本的 `mac` 别名。
-Linux x86_64 继续发布 `php8.x.micro.sfx` 与 ZIP。
+Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 
 下次安全更新时，修改 Unix workflow 中每个分支的 `version`、`sha256`（来自 https://www.php.net/downloads.php），
 以及 Windows workflow 的 `PHP_RELEASE` 映射，再执行 Run workflow。
