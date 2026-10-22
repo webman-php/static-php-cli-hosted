@@ -3,172 +3,167 @@ name: Build Self-Hosted PHP Binary (Unix)
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: static-php-unix-release
+  cancel-in-progress: false
+
+env:
+  # SPC 2.8.5 supports PHP 8.5; keep builds reproducible across reruns.
+  SPC_REF: 4318ef8fa32a02460ec1554746674a7bc42b49fa
+  EXTENSIONS: apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter
+
 jobs:
   build-release-artifacts:
-    name: "Build ${{ matrix.php-version }}-${{ matrix.combination }} on ${{ matrix.runner }}"
-    runs-on: ${{ matrix.runner }}
+    name: PHP ${{ matrix.php.version }} / ${{ matrix.target.os }}-${{ matrix.target.arch }}
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        php-version:
-          - "8.1"
-          - "8.2"
-          - "8.3"
-          - "8.4"
-        runner:
-          - "ubuntu-latest"
-          - "macos-13"
-          # 大部分时候 macos-14 执行 Download sources 会失败
-          - "macos-14"
-        combination:
-          - bulk
-    steps:
-      - name: "Process env string"
-        id: process-env
+        php:
+          - branch: '8.2'
+            version: '8.2.35'
+            sha256: 9db4204f0a2d1911277ae832185e07bb4c3b3559772753a70d2968ca346d6910
+          - branch: '8.3'
+            version: '8.3.36'
+            sha256: c93f3441f87f6ab156bef4432db215d7e61ca2c0183bb3a2aa28d9886ab59f53
+          - branch: '8.4'
+            version: '8.4.27'
+            sha256: 5bafed9994c1a49796b25b5f61c22c9183bfe046b6acc7b363842d03c77f972f
+          - branch: '8.5'
+            version: '8.5.12'
+            sha256: 81a0f450349e84b08eb43faa85f8a4c835684f3cc1c50471775d1317a046c525
+        target:
+          - runner: ubuntu-24.04
+            os: linux
+            arch: x86_64
+            command: bin/spc-alpine-docker
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: aarch64
+            command: bin/spc-alpine-docker
+          - runner: macos-15-intel
+            os: macos
+            arch: x86_64
+            command: bin/spc
+          - runner: macos-15
+            os: macos
+            arch: aarch64
+            command: bin/spc
+    defaults:
+      run:
         shell: bash
-        run: |
-          case "${{ matrix.combination }}" in
-            minimal) 
-              echo "EXTENSIONS=pcntl,posix,mbstring,tokenizer,phar" >> "$GITHUB_OUTPUT"
-              echo "DEPLOY_TARGET=${{ secrets.DEPLOY_SERVER_TARGET_MINIMAL }}" >> "$GITHUB_OUTPUT"
-              ;;
-            common)  
-              echo "EXTENSIONS=bcmath,bz2,calendar,ctype,curl,dom,exif,fileinfo,filter,ftp,gd,gmp,iconv,xml,mbstring,mbregex,mysqlnd,openssl,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,posix,redis,session,simplexml,soap,sockets,sqlite3,tokenizer,xmlwriter,xmlreader,zlib,zip" >> "$GITHUB_OUTPUT"
-              echo "DEPLOY_TARGET=${{ secrets.DEPLOY_SERVER_TARGET }}" >> "$GITHUB_OUTPUT"
-              ;;
-            bulk)    
-              echo "EXTENSIONS=apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter" >> "$GITHUB_OUTPUT"
-              #echo "EXTENSIONS=apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib" >> "$GITHUB_OUTPUT"
-              echo "DEPLOY_TARGET=${{ secrets.DEPLOY_SERVER_TARGET_BULK }}" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-          
-          case "${{ matrix.runner }}" in
-            ubuntu-latest)
-              echo "OS=linux" >> "$GITHUB_OUTPUT"
-              echo "ARCH=x86_64" >> "$GITHUB_OUTPUT"
-              echo "CMD=bin/spc-alpine-docker" >> "$GITHUB_OUTPUT"
-              ;;
-            ubuntu-20.04)
-              echo "OS=linux" >> "$GITHUB_OUTPUT"
-              echo "ARCH=aarch64" >> "$GITHUB_OUTPUT"
-              echo CMD="SPC_USE_ARCH=aarch64 bin/spc-alpine-docker" >> "$GITHUB_OUTPUT"
-              ;;
-            windows-2019)
-              echo "OS=windows" >> "$GITHUB_OUTPUT"
-              echo "ARCH=x86_64" >> "$GITHUB_OUTPUT"
-              echo "CMD=bin/spc" >> "$GITHUB_OUTPUT"
-              ;;
-            macos-13)
-              echo "OS=macos" >> "$GITHUB_OUTPUT"
-              echo "ARCH=x86_64" >> "$GITHUB_OUTPUT"
-              echo "CMD=bin/spc" >> "$GITHUB_OUTPUT"
-              ;;
-            macos-14)
-              echo "OS=macos" >> "$GITHUB_OUTPUT"
-              echo "ARCH=aarch64" >> "$GITHUB_OUTPUT"
-              echo "CMD=bin/spc" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
-      
-      - name: "Checkout remote"
-        if: github.repository != 'crazywhalecc/static-php-cli'
-        uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
         with:
           repository: crazywhalecc/static-php-cli
-          ref: main
+          ref: ${{ env.SPC_REF }}
 
-      - name: "Setup PHP"
-        if: matrix.runner != 'ubuntu-20.04'
+      - name: Setup build runtime
+        if: runner.os == 'macOS'
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.2
-          tools: pecl, composer
-          extensions: curl, openssl, mbstring
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: curl,openssl,mbstring
           ini-values: memory_limit=-1
 
-      - name: "Cache composer packages"
-        id: composer-cache
-        uses: actions/cache@v4
-        with:
-          path: vendor
-          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-php
-
-      # Cache downloaded source
-      - id: cache-download
-        uses: actions/cache@v4
-        with:
-          path: downloads
-          key: pack-lib-dependencies-${{ matrix.combination }}-${{ matrix.php-version }}-${{ matrix.runner }}
-
-      - name: "Install Dependencies"
-        if: matrix.runner != 'ubuntu-20.04'
-        run: composer update -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist --no-dev
-
-      - run: ${{ steps.process-env.outputs.CMD }} doctor --auto-fix
-
-      # If there's no dependencies cache, fetch sources
-      - name: "Download sources"
-        env:
-          GITHUB_TOKEN: ${{ secrets.S_GITHUB_TOKEN }}
-        #run: ${{ steps.process-env.outputs.CMD }} download --with-php=${{ matrix.php-version }} --for-extensions=${{ steps.process-env.outputs.EXTENSIONS }} --retry=5 --prefer-pre-built
-        run: ${{ steps.process-env.outputs.CMD }} download --with-php=${{ matrix.php-version }} --for-extensions=${{ steps.process-env.outputs.EXTENSIONS }} --retry=5
-
-      - name: "Build library: ${{ matrix.library }}"
+      - name: Install build dependencies
+        if: runner.os == 'macOS'
         run: |
-          if [ "${{ steps.process-env.outputs.OS }}" = "linux" ]; then
-            ${{ steps.process-env.outputs.CMD }} install-pkg upx
-            if [ "${{ steps.process-env.outputs.ARCH }}" = "x86_64" ]; then
-              UPX=--with-upx-pack
-            fi
+          composer install --no-dev --no-interaction --no-progress --prefer-dist
+          bin/spc doctor --auto-fix
+
+      # Do not restore the old download cache: it contained vulnerable PHP sources.
+      - name: Download fresh sources
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ${{ matrix.target.command }} download \
+            --with-php=${{ matrix.php.version }} \
+            --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
+            --for-extensions="$EXTENSIONS" --retry=5
+          echo '${{ matrix.php.sha256 }}  downloads/php-${{ matrix.php.version }}.tar.gz' | shasum -a 256 -c -
+
+      - name: Build CLI and micro
+        run: ${{ matrix.target.command }} build "$EXTENSIONS" --build-cli --build-micro --debug
+
+      - name: Verify and package
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          PHP_BIN=buildroot/bin/php
+          "$PHP_BIN" -n -v
+          test "$("$PHP_BIN" -n -r 'echo PHP_VERSION;')" = "$EXPECTED_PHP_VERSION"
+          "$PHP_BIN" -n -r '
+            foreach (["pcntl", "posix", "sockets", "openssl", "curl", "mbstring", "event", "redis", "apcu", "sodium", "intl", "gd", "imagick"] as $ext) {
+                if (!extension_loaded($ext)) { fwrite(STDERR, "Missing extension: $ext\n"); exit(1); }
+            }
+            $server = stream_socket_server("tcp://127.0.0.1:0", $errno, $error);
+            if (!$server) { throw new RuntimeException($error); }
+            $client = stream_socket_client("tcp://" . stream_socket_get_name($server, false));
+            $peer = stream_socket_accept($server, 5);
+            fwrite($client, "workerman\n");
+            if (fgets($peer) !== "workerman\n") { exit(1); }
+            echo "Socket smoke test passed\n";
+          '
+          BASE=php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          "$PHP_BIN" -n -m > "dist/$BASE.extensions.txt"
+          "$PHP_BIN" -n -r 'echo json_encode(["php_version" => PHP_VERSION, "extensions" => get_loaded_extensions()], JSON_PRETTY_PRINT), PHP_EOL;' > "dist/$BASE.json"
+          tar -czf "dist/$BASE.tar.gz" -C buildroot/bin php
+          (cd dist && shasum -a 256 "$BASE.tar.gz" > "$BASE.tar.gz.sha256")
+          # Keep old installer URLs working while macos is the canonical name.
+          if [ '${{ matrix.target.os }}' = macos ]; then
+            cp "dist/$BASE.tar.gz" "dist/php-${{ matrix.php.branch }}-mac-${{ matrix.target.arch }}.tar.gz"
           fi
-          
-          ${{ steps.process-env.outputs.CMD }} build --build-cli --build-micro ${{ steps.process-env.outputs.EXTENSIONS }} --debug $UPX
-
-          # Copy out from buildroot, because docker build has different permission
-          mkdir -p tmp_dist/
-          cp buildroot/bin/php tmp_dist/
-          cp buildroot/bin/micro.sfx tmp_dist/
-
-          # UPX outside for linux-aarch64
-          if [ "${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}" = "linux-aarch64" ]; then
-            mkdir -p upx-x86_64
-            cd upx-x86_64
-            curl -#fSL -o upx.txz https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-amd64_linux.tar.xz
-            tar -xf upx.txz --strip-components 1
-            ./upx --best ../tmp_dist/php
-            ./upx --best ../tmp_dist/micro.sfx
-            SFX_SIZE=$(readelf -l ../tmp_dist/micro.sfx | awk '/LOAD|GNU_STACK/ {getline; print $1, $2, $3, $4, $6, $7}' | sed -n '2p' | awk '{print $1}')
-            head -c $(printf "%d" $SFX_SIZE) ../tmp_dist/micro.sfx > ../tmp_dist/micro.sfx.new
-            mv ../tmp_dist/micro.sfx.new ../tmp_dist/micro.sfx
-            cd ..
+          if [ '${{ matrix.target.os }}-${{ matrix.target.arch }}' = linux-x86_64 ]; then
+            cp buildroot/bin/micro.sfx "dist/php${{ matrix.php.branch }}.micro.sfx"
+            (cd dist && zip "php${{ matrix.php.branch }}.micro.sfx.zip" "php${{ matrix.php.branch }}.micro.sfx")
           fi
 
-          PHPVER=$(cat source/php-src/main/php_version.h | grep "PHP_VERSION " | awk -F\" '{print $2}')
-          
-          if [ ! -d "dist" ]; then
-            mkdir dist/
-          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
 
-          sudo chmod -R 777 dist
-          
-          tar -czf dist/php-${{ matrix.php-version }}-${{ steps.process-env.outputs.OS }}-${{ steps.process-env.outputs.ARCH }}.tar.gz -C tmp_dist/ php
-          
-          if [ "${{ matrix.runner }}" == "ubuntu-latest" ]; then
-            mv tmp_dist/micro.sfx dist/php${{ matrix.php-version }}.micro.sfx
-            cd dist && zip php${{ matrix.php-version }}.micro.sfx.zip ./php${{ matrix.php-version }}.micro.sfx
-          fi
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: log/
+          retention-days: 7
 
-      # Deploy
-      - uses: easingthemes/ssh-deploy@v5.1.0
+  deploy:
+    name: Publish verified binaries
+    needs: build-release-artifacts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: php-*
+          path: release/
+          merge-multiple: true
+      - name: Verify all archives
+        run: |
+          set -euo pipefail
+          test "$(find release -name '*.json' | wc -l)" -eq 16
+          cd release
+          for checksum in *.tar.gz.sha256; do sha256sum -c "$checksum"; done
+      - name: Deploy with backups
+        uses: easingthemes/ssh-deploy@v5.1.0
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
-          ARGS: "-rltgoDzvO"
-          SOURCE: "dist/"
+          ARGS: '-rltDzvO --delay-updates --backup --backup-dir=../php-backups/run-${{ github.run_id }}'
+          SOURCE: release/
           REMOTE_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
           REMOTE_PORT: ${{ secrets.DEPLOY_SERVER_PORT }}
           REMOTE_USER: ${{ secrets.DEPLOY_SERVER_USER }}
           TARGET: ${{ secrets.DEPLOY_SERVER_TARGET }}
-
