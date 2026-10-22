@@ -25,9 +25,11 @@ PHP 8.1 不再构建或列入支持列表。
 Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
 每个任务从 PHP 官方地址重新下载源码，验证官方 SHA-256；编译后核对完整版本号、关键扩展和 TCP socket 通信。
 默认勾选 `include-glibc`，额外生成 glibc 2.17 兼容的 Linux x86_64/aarch64，共 24 个组合。glibc 包以 `-glibc.tar.gz` 结尾；默认下载文件仍为 musl 全静态版。
+完整矩阵会从源码编译大量依赖，macOS 任务可能排队，需等待每个 job 的运行验证完成。
 glibc 产物还会通过 ELF 符号检查，确认所需 glibc 不高于 2.17。
 所有选定组合通过后才合并产物，使用已有 `DEPLOY_SERVER_*` secrets 上传服务器；替换的文件备份到目标目录旁的 `php-backups/run-<run_id>/`。
 Actions artifacts 同时保留压缩包、SHA-256、扩展列表和版本 JSON。
+上传后会通过公开下载地址再次核对每个包的校验文件与版本 JSON，避免上传目标或缓存错误导致页面仍提供旧版本。
 macOS 使用 `macos` 文件名，同时提供兼容旧安装脚本的 `mac` 别名。
 Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 
