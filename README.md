@@ -19,7 +19,7 @@ This repository is used to automatically compile static-php-cli related content 
 实际构建入口为本仓库的 [Actions → Build Self-Hosted PHP Binary (Unix) → Run workflow](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/build-php-unix.yml)。
 `walkor/static-php-cli` 是旧的编译器 fork，本仓库直接检出上游 SPC v3 的固定提交（含本次 PHP 安全版本的 IMAP、Swoole、静态 libpq 兼容修复）。
 
-构建版本：PHP 8.2.35、8.3.36、8.4.27、8.5.12，均包含 2026-10-21 的安全修复。
+各分支的完整构建版本与官方源码 SHA-256 统一保存在 [`.github/php-releases.json`](.github/php-releases.json)，由更新检查自动维护。
 PHP 8.1 不再构建或列入支持列表。
 
 Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
@@ -37,8 +37,17 @@ Actions artifacts 同时保留压缩包、SHA-256、扩展列表和版本 JSON�
 macOS 使用 `macos` 文件名，同时提供兼容旧安装脚本的 `mac` 别名。
 Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 
-下次安全更新时，修改 Unix workflow 中每个分支的 `version`、`sha256`（来自 https://www.php.net/downloads.php），
-以及 Windows workflow 的 `PHP_RELEASE` 映射，再执行 Run workflow。
+### 每周自动更新
+
+[Check PHP releases weekly](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/check-php-updates.yml) 在每周一北京时间 04:23（UTC 周日 20:23）检查，也可手动 Run workflow。
+检查运行在 GitHub，不需要本地电脑开机。使用 PHP 官方 release JSON API，分别读取 8.2、8.3、8.4、8.5 的最新正式版及 tar.gz 的 SHA-256，不采用 RC/开发版，不自动增加新的 PHP 分支。
+与下载站全部 24 个 Linux/macOS 包的实际版本比较；没有新版且包齐全时，跳过构建和上传，不产生版本提交。
+有新版时自动提交版本清单，并触发包含 musl、glibc 2.17、macOS 的完整 Unix 构建、验证和发布流程；上传前仍会备份旧下载文件。
+以上定时任务维护下载站的静态 PHP 包。Windows 保持手动构建；业务服务器的运行中 PHP 仍按需单独升级。
+如果上次编译或发布失败，即使清单已经提交了新版本，下次仍会根据下载站实际版本重试；已有构建或发布运行中时暂缓，避免重复任务。
+官方数据异常、校验和发生意外变化或检测到版本回退时，检查会失败并保留现有下载文件。
+
+手动指定版本时，修改 `.github/php-releases.json` 的 `version`、`sha256`（来自 https://www.php.net/downloads.php），再运行 Unix 构建。Windows 也读取同一清单。
 不要恢复以前仅按 `8.x` 缓存的 PHP 源码，以免把旧漏洞版本再次发布。
 失败时查看对应 job 的 Download/Build 日志与 `logs-*` artifact。网络等临时错误可重新运行失败任务；修改 workflow 或编译器提交后，必须重新 Run workflow，使新提交生效。发布 job 会等待全部编译通过。
 

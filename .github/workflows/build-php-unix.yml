@@ -26,30 +26,15 @@ jobs:
     name: Select build platforms
     runs-on: ubuntu-24.04
     outputs:
+      php: ${{ steps.targets.outputs.php }}
       targets: ${{ steps.targets.outputs.targets }}
       count: ${{ steps.targets.outputs.count }}
     steps:
+      - uses: actions/checkout@v4
       - id: targets
         env:
           INCLUDE_GLIBC: ${{ inputs.include-glibc }}
-        run: |
-          python3 - <<'PYTHON'
-          import json, os
-          targets = [
-              dict(runner='ubuntu-24.04', os='linux', arch='x86_64', suffix='', triple='x86_64-linux-musl'),
-              dict(runner='ubuntu-24.04-arm', os='linux', arch='aarch64', suffix='', triple='aarch64-linux-musl'),
-              dict(runner='macos-15-intel', os='macos', arch='x86_64', suffix='', triple='native-macos'),
-              dict(runner='macos-15', os='macos', arch='aarch64', suffix='', triple='native-macos'),
-          ]
-          if os.environ['INCLUDE_GLIBC'] == 'true':
-              targets += [
-                  dict(runner='ubuntu-24.04', os='linux', arch='x86_64', suffix='-glibc', triple='x86_64-linux-gnu.2.17'),
-                  dict(runner='ubuntu-24.04-arm', os='linux', arch='aarch64', suffix='-glibc', triple='aarch64-linux-gnu.2.17'),
-              ]
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write('targets=' + json.dumps(targets, separators=(',', ':')) + '\n')
-              out.write('count=' + str(4 * len(targets)) + '\n')
-          PYTHON
+        run: python3 .github/scripts/php_releases.py plan
 
   build-release-artifacts:
     name: PHP ${{ matrix.php.version }} / ${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
@@ -62,19 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php:
-          - branch: '8.2'
-            version: '8.2.35'
-            sha256: 9db4204f0a2d1911277ae832185e07bb4c3b3559772753a70d2968ca346d6910
-          - branch: '8.3'
-            version: '8.3.36'
-            sha256: c93f3441f87f6ab156bef4432db215d7e61ca2c0183bb3a2aa28d9886ab59f53
-          - branch: '8.4'
-            version: '8.4.27'
-            sha256: 5bafed9994c1a49796b25b5f61c22c9183bfe046b6acc7b363842d03c77f972f
-          - branch: '8.5'
-            version: '8.5.12'
-            sha256: 81a0f450349e84b08eb43faa85f8a4c835684f3cc1c50471775d1317a046c525
+        php: ${{ fromJSON(needs.plan.outputs.php) }}
         target: ${{ fromJSON(needs.plan.outputs.targets) }}
     defaults:
       run:

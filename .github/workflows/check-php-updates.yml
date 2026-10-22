@@ -1,0 +1,74 @@
+name: Check PHP releases weekly
+
+on:
+  schedule:
+    # Monday 04:23 in Asia/Shanghai (Sunday 20:23 UTC).
+    - cron: '23 20 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: static-php-release-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check official PHP releases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Test release checks and build plan
+        run: |
+          python3 -m unittest discover -s .github/scripts -p 'test_php_releases.py' -v
+          python3 .github/scripts/php_releases.py plan
+
+      - name: Check for an active build or publication
+        id: active
+        run: |
+          set -euo pipefail
+          active=false
+          for workflow in build-php-unix.yml deploy-php-unix.yml; do
+            count=$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?branch=$DEFAULT_BRANCH&per_page=100" \
+              --jq '[.workflow_runs[] | select(.status != "completed")] | length')
+            if [ "$count" -gt 0 ]; then active=true; fi
+          done
+          echo "running=$active" >> "$GITHUB_OUTPUT"
+          if [ "$active" = true ]; then
+            echo 'A build or publication is already active; check deferred to the next run.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Compare official releases with all published packages
+        id: releases
+        if: steps.active.outputs.running != 'true'
+        run: python3 .github/scripts/php_releases.py check
+
+      - name: Record official versions and source checksums
+        if: steps.releases.outputs.manifest-changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/php-releases.json
+          git commit -m 'Update official stable PHP releases'
+          git push origin "HEAD:$DEFAULT_BRANCH"
+
+      # GITHUB_TOKEN pushes do not trigger another workflow. Explicit dispatch does.
+      - name: Build and publish updated packages including glibc
+        if: steps.releases.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+          gh workflow run build-php-unix.yml --ref "$DEFAULT_BRANCH" -f include-glibc=true
+          echo 'Dispatched the verified 24-package Unix build and publication workflow.' >> "$GITHUB_STEP_SUMMARY"
