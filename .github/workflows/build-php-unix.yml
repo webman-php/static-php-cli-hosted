@@ -2,6 +2,11 @@ name: Build Self-Hosted PHP Binary (Unix)
 
 on:
   workflow_dispatch:
+    inputs:
+      include-glibc:
+        description: Also build Linux glibc 2.17-compatible binaries
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -11,13 +16,46 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Pin maintained SPC v2, including the August 2026 libaom patch fix.
-  SPC_REF: 956fa13e7c390e3127cc0343215c00491f13a835
+  # Includes upstream fixes for the IMAP stubs in PHP 8.4.27/8.5.12 and current Swoole.
+  SPC_REF: 84ff669ee513609bc75aa43a87e2f3a349b37109
   EXTENSIONS: apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter
 
 jobs:
+  plan:
+    name: Select build platforms
+    runs-on: ubuntu-24.04
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+      count: ${{ steps.targets.outputs.count }}
+    steps:
+      - id: targets
+        env:
+          INCLUDE_GLIBC: ${{ inputs.include-glibc }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          targets = [
+              dict(runner='ubuntu-24.04', os='linux', arch='x86_64', suffix='', triple='x86_64-linux-musl'),
+              dict(runner='ubuntu-24.04-arm', os='linux', arch='aarch64', suffix='', triple='aarch64-linux-musl'),
+              dict(runner='macos-15-intel', os='macos', arch='x86_64', suffix='', triple='native-macos'),
+              dict(runner='macos-15', os='macos', arch='aarch64', suffix='', triple='native-macos'),
+          ]
+          if os.environ['INCLUDE_GLIBC'] == 'true':
+              targets += [
+                  dict(runner='ubuntu-24.04', os='linux', arch='x86_64', suffix='-glibc', triple='x86_64-linux-gnu.2.17'),
+                  dict(runner='ubuntu-24.04-arm', os='linux', arch='aarch64', suffix='-glibc', triple='aarch64-linux-gnu.2.17'),
+              ]
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('targets=' + json.dumps(targets, separators=(',', ':')) + '\n')
+              out.write('count=' + str(4 * len(targets)) + '\n')
+          PYTHON
+
   build-release-artifacts:
-    name: PHP ${{ matrix.php.version }} / ${{ matrix.target.os }}-${{ matrix.target.arch }}
+    name: PHP ${{ matrix.php.version }} / ${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
+    needs: plan
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SPC_TARGET: ${{ matrix.target.triple }}
     runs-on: ${{ matrix.target.runner }}
     timeout-minutes: 240
     strategy:
@@ -36,23 +74,7 @@ jobs:
           - branch: '8.5'
             version: '8.5.12'
             sha256: 81a0f450349e84b08eb43faa85f8a4c835684f3cc1c50471775d1317a046c525
-        target:
-          - runner: ubuntu-24.04
-            os: linux
-            arch: x86_64
-            command: bin/spc-alpine-docker
-          - runner: ubuntu-24.04-arm
-            os: linux
-            arch: aarch64
-            command: bin/spc-alpine-docker
-          - runner: macos-15-intel
-            os: macos
-            arch: x86_64
-            command: bin/spc
-          - runner: macos-15
-            os: macos
-            arch: aarch64
-            command: bin/spc
+        target: ${{ fromJSON(needs.plan.outputs.targets) }}
     defaults:
       run:
         shell: bash
@@ -63,7 +85,6 @@ jobs:
           ref: ${{ env.SPC_REF }}
 
       - name: Setup build runtime
-        if: runner.os == 'macOS'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -72,29 +93,32 @@ jobs:
           ini-values: memory_limit=-1
 
       - name: Install build dependencies
-        if: runner.os == 'macOS'
         run: |
           composer install --no-dev --no-interaction --no-progress --prefer-dist
           bin/spc doctor --auto-fix
+          bin/spc dev:lint-config
 
       # A full patch version and compiler commit prevent reuse of vulnerable sources.
       - uses: actions/cache@v4
         with:
           path: downloads/
-          key: security-sources-${{ env.SPC_REF }}-${{ matrix.php.version }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          key: security-sources-${{ env.SPC_REF }}-${{ matrix.php.version }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
 
       - name: Download fresh sources
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ${{ matrix.target.command }} download \
+          bin/spc download \
             --with-php=${{ matrix.php.version }} \
             --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
-            --for-extensions="$EXTENSIONS" --retry=5
+            --custom-url=libevent:https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz \
+            --custom-url=ext-event:https://pecl.php.net/get/event-3.1.6.tgz \
+            --for-extensions="$EXTENSIONS" --retry=5 --parallel=4
+          echo 'f7e9383b8c0baa81b687e5b5eecc01beefaf1b19b64151d95ed61647fe7a315c  downloads/libevent-2.1.13-stable.tar.gz' | shasum -a 256 -c -
           echo '${{ matrix.php.sha256 }}  downloads/php-${{ matrix.php.version }}.tar.gz' | shasum -a 256 -c -
 
       - name: Build CLI and micro
-        run: ${{ matrix.target.command }} build "$EXTENSIONS" --build-cli --build-micro --debug
+        run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }} -vvv
 
       - name: Verify and package
         env:
@@ -117,7 +141,7 @@ jobs:
             if (fgets($peer) !== "workerman\n") { exit(1); }
             echo "Socket smoke test passed\n";
           '
-          BASE=php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          BASE=php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
           "$PHP_BIN" -n -m > "dist/$BASE.extensions.txt"
           "$PHP_BIN" -n -r 'echo json_encode(["php_version" => PHP_VERSION, "extensions" => get_loaded_extensions()], JSON_PRETTY_PRINT), PHP_EOL;' > "dist/$BASE.json"
           tar -czf "dist/$BASE.tar.gz" -C buildroot/bin php
@@ -126,7 +150,7 @@ jobs:
           if [ '${{ matrix.target.os }}' = macos ]; then
             cp "dist/$BASE.tar.gz" "dist/php-${{ matrix.php.branch }}-mac-${{ matrix.target.arch }}.tar.gz"
           fi
-          if [ '${{ matrix.target.os }}-${{ matrix.target.arch }}' = linux-x86_64 ]; then
+          if [ '${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}' = linux-x86_64 ]; then
             cp "$PHP_BIN" "dist/php${{ matrix.php.branch }}"
             (cd dist && zip "php${{ matrix.php.branch }}.zip" "php${{ matrix.php.branch }}")
             cp buildroot/bin/micro.sfx "dist/php${{ matrix.php.branch }}.micro.sfx"
@@ -135,7 +159,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          name: php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
           path: dist/
           if-no-files-found: error
           retention-days: 30
@@ -144,13 +168,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          name: logs-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
           path: log/
           retention-days: 7
 
   deploy:
     name: Publish verified binaries
-    needs: build-release-artifacts
+    needs: [plan, build-release-artifacts]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -161,7 +185,7 @@ jobs:
       - name: Verify all archives
         run: |
           set -euo pipefail
-          test "$(find release -name '*.json' | wc -l)" -eq 16
+          test "$(find release -name '*.json' | wc -l)" -eq ${{ needs.plan.outputs.count }}
           cd release
           for checksum in *.tar.gz.sha256; do sha256sum -c "$checksum"; done
       - name: Deploy with backups
