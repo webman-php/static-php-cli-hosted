@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: static-php-unix-release
+  group: static-php-unix-no-intl-${{ inputs.validation-only && 'validation' || 'release' }}
   cancel-in-progress: false
 
 env:
