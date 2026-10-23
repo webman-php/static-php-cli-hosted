@@ -40,6 +40,21 @@ Actions artifacts 同时保留压缩包、SHA-256、扩展列表和版本 JSON�
 macOS 使用 `macos` 文件名，同时提供兼容旧安装脚本的 `mac` 别名。
 Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 
+### UPX 对比试验（2026-10-23）
+
+使用 PHP 8.3.36 Linux x86_64 musl 无 intl 产物和 UPX 5.2.1 `--best`，仅测试副本；此试验没有改变默认发布配置。
+
+| 文件 | 加壳前 | 加壳后 |
+| --- | ---: | ---: |
+| CLI | 63,337,528 B | 19,522,892 B |
+| micro.sfx | 63,195,416 B | 19,482,480 B |
+| 同一 webman 应用 | 66,809,311 B | 23,096,375 B |
+| micro.sfx ZIP | 22,654,519 B | 19,109,200 B |
+
+CLI 的版本、完整扩展列表和 UPX 完整性检查通过；micro 在加壳后按 [SPC 的补丁](https://github.com/crazywhalecc/static-php-cli/blob/84ff669ee513609bc75aa43a87e2f3a349b37109/src/Package/Target/php/unix.php#L689) 截去尾段，再附加同一份 PHAR，实际启动并验证 HTTP 响应。
+在同一服务器交替运行三次，8 个业务 worker（含 master、monitor 共 10 个进程）的进程树 PSS 中位数为 66,449 → 85,469 KiB，HTTP 就绪时间中位数为 87.45 → 330.70 ms。
+UPX 明显缩小磁盘文件，不能减少运行内存；本次测试运行内存增加约 18.6 MiB。以上数据仅代表这个 PHP 版本、平台和测试应用。
+
 ### 每周自动更新
 
 [Check PHP releases weekly](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/check-php-updates.yml) 在每周一北京时间 04:23（UTC 周日 20:23）检查，也可手动 Run workflow。
