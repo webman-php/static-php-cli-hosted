@@ -1,8 +1,10 @@
 """Exercise the forced receiver's network and archive trust boundaries."""
 import importlib.util
+import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 spec = importlib.util.spec_from_file_location('php_pull_receiver', Path(__file__).with_name('receive-static-php-pull.py'))
@@ -47,6 +49,30 @@ class PullBoundaryTests(unittest.TestCase):
                     bundle.writestr(entry, 'target')
                 with self.assertRaises(AssertionError):
                     receiver.unpack(root / 'bundle.zip', root, {'php'})
+
+    def test_parallel_ranges_reassemble_without_holes(self):
+        content = bytes(range(256)) * 65537
+
+        class Opener:
+            def open(self, request, timeout):
+                start, end = map(int, request.get_header('Range').removeprefix('bytes=').split('-'))
+                response = io.BytesIO(content[start:end + 1])
+                response.status = 206
+                response.headers = {'Content-Range': f'bytes {start}-{end}/{len(content)}'}
+                return response
+
+        with tempfile.TemporaryDirectory() as temporary, patch.object(receiver, 'build_opener', return_value=Opener()):
+            archive = Path(temporary) / 'release.zip'
+            receiver.download({'size': len(content), 'download_url': self.manifest()['download_url']}, archive)
+            self.assertEqual(archive.read_bytes(), content)
+
+    def test_server_ignoring_ranges_cannot_publish(self):
+        response = io.BytesIO(b'wrong')
+        response.status = 200
+        with tempfile.TemporaryDirectory() as temporary, patch.object(receiver, 'build_opener') as opener:
+            opener.return_value.open.return_value = response
+            with self.assertRaisesRegex(RuntimeError, 'range transfer failed'):
+                receiver.download({'size': 5, 'download_url': self.manifest()['download_url']}, Path(temporary) / 'release.zip')
 
 
 if __name__ == '__main__':

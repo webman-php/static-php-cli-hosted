@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Root-owned forced SSH receiver: validate and publish files, never execute them."""
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 import fcntl
 import hashlib
 import json
@@ -13,8 +14,9 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, build_opener
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
 
 PUBLIC = Path('/home/www/download.workerman.net/public/php')
@@ -60,6 +62,48 @@ def expected_files(info):
     files |= {f'php-{branch}-mac-{arch}.tar.gz' for branch in info['versions'] for arch in ('x86_64', 'aarch64')}
     files |= {f'php{branch}{suffix}' for branch in info['versions'] for suffix in ('', '.zip', '.micro.sfx', '.micro.sfx.zip')}
     return bases, files
+
+
+def download(info, archive):
+    # Overseas single TCP streams can be heavily throttled. Azure supports byte
+    # ranges; open all ranges immediately while the signed URL is fresh.
+    size = info['size']
+    streams = min(32, (size + 8 * 1024 ** 2 - 1) // (8 * 1024 ** 2))
+    width = (size + streams - 1) // streams
+    progress = [0, 100 * 1024 ** 2]
+    progress_lock = threading.Lock()
+    descriptor = os.open(archive, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    os.ftruncate(descriptor, size)
+
+    def transfer(start):
+        end = min(size, start + width) - 1
+        request = Request(info['download_url'], headers={'Range': f'bytes={start}-{end}'})
+        with build_opener(NoRedirect).open(request, timeout=90) as source:
+            assert source.status == 206 and source.headers['Content-Range'] == f'bytes {start}-{end}/{size}', 'Invalid artifact byte range'
+            position = start
+            while position <= end:
+                chunk = source.read(min(1024 * 1024, end - position + 1))
+                assert chunk, 'Incomplete artifact byte range'
+                pending = memoryview(chunk)
+                while pending:
+                    written = os.pwrite(descriptor, pending, position)
+                    assert written > 0
+                    position += written
+                    pending = pending[written:]
+                with progress_lock:
+                    progress[0] += len(chunk)
+                    if progress[0] >= progress[1]:
+                        print(f'HTTPS download: {progress[0] // (1024 ** 2)} MiB', flush=True)
+                        progress[1] += 100 * 1024 ** 2
+
+    try:
+        with ThreadPoolExecutor(max_workers=streams) as pool:
+            list(pool.map(transfer, range(0, size, width)))
+        assert progress[0] == size
+    except Exception:
+        raise RuntimeError('GitHub artifact HTTPS range transfer failed') from None
+    finally:
+        os.close(descriptor)
 
 
 def unpack(archive, destination, expected):
@@ -125,23 +169,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix='.incoming-', dir=BACKUPS) as temporary:
             stage = Path(temporary)
             archive = stage / 'release.zip'
-            # Suppress URL-containing exception messages: the SAS credential stays private.
-            try:
-                with build_opener(NoRedirect).open(info['download_url'], timeout=90) as source, archive.open('wb') as target:
-                    downloaded = 0
-                    next_progress = 100 * 1024 ** 2
-                    while True:
-                        chunk = source.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        downloaded += len(chunk)
-                        assert downloaded <= LIMIT
-                        target.write(chunk)
-                        if downloaded >= next_progress:
-                            print(f'HTTPS download: {downloaded // (1024 ** 2)} MiB', flush=True)
-                            next_progress += 100 * 1024 ** 2
-            except Exception:
-                raise RuntimeError('GitHub artifact HTTPS transfer failed') from None
+            download(info, archive)
             assert archive.stat().st_size == info['size'] and digest(archive) == info['sha256'], 'Artifact checksum mismatch'
             unpack(archive, stage, files)
             verify_files(stage, info, bases)
