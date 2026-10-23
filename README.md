@@ -55,6 +55,15 @@ CLI 的版本、完整扩展列表和 UPX 完整性检查通过；micro 在加�
 在同一服务器交替运行三次，8 个业务 worker（含 master、monitor 共 10 个进程）的进程树 PSS 中位数为 66,449 → 85,469 KiB，HTTP 就绪时间中位数为 87.45 → 330.70 ms。
 UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以上数据仅代表这个 PHP 版本、平台和测试应用。
 
+四个正式 Linux x86_64 打包运行时均通过原生 PHP 和实际 webman HTTP 检查。下表为磁盘文件大小，MB 按 1,000,000 字节计算；webman 列使用同一示例应用：
+
+| PHP | 原含 intl 的 micro | 去除 intl、未加壳 micro | UPX micro | UPX webman 程序 |
+| --- | ---: | ---: | ---: | ---: |
+| 8.2.35 | 96.86 MB | 62.13 MB | 19.41 MB | 23.02 MB |
+| 8.3.36 | 97.96 MB | 63.20 MB | 19.48 MB | 23.10 MB |
+| 8.4.27 | 101.03 MB | 66.25 MB | 20.31 MB | 23.92 MB |
+| 8.5.12 | 108.32 MB | 70.39 MB | 20.76 MB | 24.37 MB |
+
 如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布要求原构建的全部 24 个 PHP 编译任务成功，并等待原发布进程结束；原上传失败或取消时也能复用已验证的产物。随后验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
 
 UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。本次通过原生 gdb/strace 定位到 PHP 8.4.27 ARM64 glibc 的这个布局；该 CLI 使用 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch`，仍包含同一 PHP 安全修复且不含 intl/ICU。其它 Linux CLI 与全部四个 x86_64 打包运行时已通过 UPX 原生运行检查。后续安全版本会重新检查布局，允许加壳时自动恢复 UPX。每周检查识别这个兼容策略，避免对已正确发布的包反复编译。
