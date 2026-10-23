@@ -7,13 +7,17 @@ on:
         description: Unix build run containing the complete uncompressed no-intl release
         type: string
         required: true
+      reuse-upx-run-id:
+        description: Optional prior UPX run whose matching artifacts can be reverified and reused
+        type: string
+        default: ''
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: static-php-upx-repack
+  group: static-php-upx-repack-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -66,6 +70,15 @@ jobs:
           run-id: ${{ inputs.source-run-id }}
           name: ${{ env.PACKAGE_BASE }}
           path: source/
+      - name: Download reusable UPX artifact when available
+        if: inputs.reuse-upx-run-id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.reuse-upx-run-id }}
+          name: ${{ env.PACKAGE_BASE }}
+          path: reused/
       - name: Verify and restore the original artifact
         run: python3 .github/scripts/prepare-php-artifact.py
       - name: Verify plain binaries, apply UPX and test the packed runtimes

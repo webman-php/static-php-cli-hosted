@@ -1,5 +1,5 @@
 {
-    "name": "crazywhalecc/static-php-cli-hosted"
+    "name": "crazywhalecc/static-php-cli-hosted",
     "require": {
         "crazywhalecc/static-php-cli": "dev-main"
     }
