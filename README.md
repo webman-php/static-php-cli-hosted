@@ -21,6 +21,9 @@ This repository is used to automatically compile static-php-cli related content 
 
 各分支的完整构建版本与官方源码 SHA-256 统一保存在 [`.github/php-releases.json`](.github/php-releases.json)，由更新检查自动维护。
 PHP 8.1 不再构建或列入支持列表。
+所有 Unix CLI 和 micro.sfx 均不包含 intl/ICU，保留原有其余扩展；不提供 intl 变体，也不使用 UPX。
+CI 直接检查未压缩文件的 ICU 数据、扩展和大小（每个可执行文件不超过 80 MiB），并实际执行 webman 的 build:bin 和打包后的 HTTP 服务。
+可勾选 `validation-only`，先仅编译 PHP 8.3 Linux x86_64，比较旧版与新版的实际文件大小、同一 webman 应用的进程树 PSS 内存；此模式不会发布。
 
 Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
 每个任务从 PHP 官方地址重新下载源码，验证官方 SHA-256；编译后核对完整版本号、关键扩展和 TCP socket 通信。

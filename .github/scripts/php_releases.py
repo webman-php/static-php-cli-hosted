@@ -114,6 +114,8 @@ def decide_updates(current, latest, published):
                 raise ValueError(f"Refusing to downgrade published package {name}")
             if actual < expected:
                 pending.append(f"{name}: {metadata['php_version']} -> {new['version']}")
+            elif "intl" in metadata.get("extensions", []):
+                pending.append(f"{name}: replace the obsolete intl/ICU build")
     return pending
 
 
@@ -145,6 +147,9 @@ def main():
     current = validate_manifest(json.loads(args.manifest.read_text()))
     if args.command == "plan":
         targets = build_targets(os.environ.get("INCLUDE_GLIBC", "true") == "true")
+        if os.environ.get("VALIDATION_ONLY") == "true":
+            current = [item for item in current if item["branch"] == "8.3"]
+            targets = targets[:1]
         write_outputs({
             "php": json.dumps(current, separators=(",", ":")),
             "targets": json.dumps(targets, separators=(",", ":")),

@@ -38,6 +38,10 @@ class ReleaseChecksTest(unittest.TestCase):
         self.published["php-8.4-macos-aarch64"] = None
         self.assertEqual(["php-8.4-macos-aarch64: missing"], releases.decide_updates(self.current, self.current, self.published))
 
+    def test_same_version_with_obsolete_intl_build_retries(self):
+        self.published["php-8.3-linux-x86_64"]["extensions"] = ["intl", "curl"]
+        self.assertEqual(["php-8.3-linux-x86_64: replace the obsolete intl/ICU build"], releases.decide_updates(self.current, self.current, self.published))
+
     def test_manifest_and_public_downloads_never_downgrade(self):
         latest = copy.deepcopy(self.current)
         latest[0]["version"] = "8.2.0"
@@ -110,6 +114,16 @@ class ReleaseChecksTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     releases.main()
             self.assertEqual(original, manifest.read_text())
+
+    def test_validation_plan_never_builds_full_release(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output), "VALIDATION_ONLY": "true"}), patch("sys.argv", ["php_releases.py", "plan"]):
+                releases.main()
+            values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+            self.assertEqual("1", values["count"])
+            self.assertEqual(["8.3"], [item["branch"] for item in json.loads(values["php"])])
+            self.assertEqual("x86_64-linux-musl", json.loads(values["targets"])[0]["triple"])
 
     def test_cli_no_new_release_preserves_manifest_and_skips_build(self):
         with tempfile.TemporaryDirectory() as temporary:

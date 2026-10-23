@@ -7,6 +7,10 @@ on:
         description: Also build Linux glibc 2.17-compatible binaries
         type: boolean
         default: true
+      validation-only:
+        description: Validate PHP 8.3 Linux x86_64 only, without publishing
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -19,7 +23,7 @@ concurrency:
 env:
   # Includes upstream fixes for the IMAP stubs in PHP 8.4.27/8.5.12 and current Swoole.
   SPC_REF: 84ff669ee513609bc75aa43a87e2f3a349b37109
-  EXTENSIONS: apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter
+  EXTENSIONS: apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter
 
 jobs:
   plan:
@@ -34,6 +38,7 @@ jobs:
       - id: targets
         env:
           INCLUDE_GLIBC: ${{ inputs.include-glibc }}
+          VALIDATION_ONLY: ${{ inputs.validation-only }}
         run: python3 .github/scripts/php_releases.py plan
 
   build-release-artifacts:
@@ -57,6 +62,11 @@ jobs:
         with:
           repository: crazywhalecc/static-php-cli
           ref: ${{ env.SPC_REF }}
+
+      - uses: actions/checkout@v4
+        with:
+          path: .release-tools
+          persist-credentials: false
 
       - name: Setup build runtime
         uses: shivammathur/setup-php@v2
@@ -99,6 +109,26 @@ jobs:
       - name: Build CLI and micro
         run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
 
+      - name: Reject intl, bundled ICU data, packed executables and oversized binaries
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+        run: python3 .release-tools/.github/scripts/verify-lean-build.py
+
+      - name: Build and run a real webman binary
+        if: matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+          COMPARE_PUBLIC: ${{ inputs.validation-only }}
+        run: python3 .release-tools/.github/scripts/smoke-webman-bin.py
+
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        with:
+          name: validation-php-${{ matrix.php.branch }}
+          path: validation/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Verify and package
         env:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
@@ -120,7 +150,7 @@ jobs:
           fi
           test "$("$PHP_BIN" -n -r 'echo PHP_VERSION;')" = "$EXPECTED_PHP_VERSION"
           "$PHP_BIN" -n -r '
-            foreach (["pcntl", "posix", "sockets", "openssl", "curl", "mbstring", "event", "redis", "apcu", "sodium", "intl", "gd", "imagick"] as $ext) {
+            foreach (["pcntl", "posix", "sockets", "openssl", "curl", "mbstring", "event", "redis", "apcu", "sodium", "gd", "imagick"] as $ext) {
                 if (!extension_loaded($ext)) { fwrite(STDERR, "Missing extension: $ext\n"); exit(1); }
             }
             $server = stream_socket_server("tcp://127.0.0.1:0", $errno, $error);
@@ -165,6 +195,7 @@ jobs:
   deploy:
     name: Publish verified binaries
     needs: [plan, build-release-artifacts]
+    if: ${{ !inputs.validation-only }}
     uses: ./.github/workflows/deploy-php-unix.yml
     with:
       source-run-id: '${{ github.run_id }}'
