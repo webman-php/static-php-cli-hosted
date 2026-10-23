@@ -77,7 +77,9 @@ def restore_reused(candidate, binary, is_micro, original_digest, expected, arch,
         roundtrip(upx, candidate, original_digest)
     verify_candidate(candidate, is_micro, expected, arch)
     print("Reused and reverified UPX artifact:", base, binary.name, flush=True)
-    return {key: record[key] for key in ("unpacked_bytes", "unpacked_sha256", "binary_bytes", "sha256")}
+    result = {key: record[key] for key in ("unpacked_bytes", "unpacked_sha256", "binary_bytes", "sha256")}
+    result["upx_options"] = record.get("upx_options", ["--best"])
+    return result
 
 
 def save_failure(candidate, index, error):
@@ -154,7 +156,7 @@ def main():
                 "unpacked_sha256": original_digest,
                 "binary_bytes": candidate.stat().st_size,
                 "sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(),
-                "upx_options": options if reused is None else ["reused-verified"],
+                "upx_options": options if reused is None else reused["upx_options"],
             }
             shutil.copyfile(candidate, binary)
             binary.chmod(0o755)
