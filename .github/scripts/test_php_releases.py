@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import php_releases as releases
+from php_binary import UPX_ARM_GLIBC_FALLBACK
 
 
 class ReleaseChecksTest(unittest.TestCase):
@@ -49,6 +50,15 @@ class ReleaseChecksTest(unittest.TestCase):
     def test_macos_does_not_need_upx_metadata(self):
         self.assertNotIn("packing", self.published["php-8.3-macos-aarch64"])
         self.assertEqual([], releases.decide_updates(self.current, self.current, self.published))
+
+    def test_native_verified_arm_glibc_hatch_fallback_does_not_rebuild_weekly(self):
+        info = self.published["php-8.4-linux-aarch64-glibc"]
+        info.update(packing="none", packing_reason=UPX_ARM_GLIBC_FALLBACK)
+        self.assertEqual([], releases.decide_updates(self.current, self.current, self.published))
+        self.published["php-8.4-linux-x86_64"].update(info)
+        pending = releases.decide_updates(self.current, self.current, self.published)
+        self.assertEqual(1, len(pending))
+        self.assertTrue(pending[0].startswith("php-8.4-linux-x86_64:"))
 
     def test_manifest_and_public_downloads_never_downgrade(self):
         latest = copy.deepcopy(self.current)

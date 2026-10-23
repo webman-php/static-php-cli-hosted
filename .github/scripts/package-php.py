@@ -8,7 +8,7 @@ import subprocess
 import tarfile
 import zipfile
 
-from php_binary import UPX_VERSION, verify_micro, verify_runtime
+from php_binary import UPX_VERSION, current_linux_profile, verify_micro, verify_runtime
 
 version = os.environ["EXPECTED_PHP_VERSION"]
 branch = ".".join(version.split(".")[:2])
@@ -24,9 +24,11 @@ output.mkdir(exist_ok=True)
 info = dict(php_version=version, extensions=actual["extensions"], packing="none", binary_bytes=cli.stat().st_size)
 if target_os == "linux":
     report = json.loads(Path("validation/upx-pack.json").read_text())
-    assert report["packing"] == "upx" and report["upx_version"] == UPX_VERSION
+    assert current_linux_profile(report, dict(arch=arch, suffix=suffix))
     assert report["binaries"]["php"]["sha256"] == hashlib.sha256(cli.read_bytes()).hexdigest()
-    info.update(packing="upx", upx_version=UPX_VERSION, **report["binaries"]["php"])
+    info.update(packing=report["packing"], upx_version=UPX_VERSION, **report["binaries"]["php"])
+    if "packing_reason" in report:
+        info["packing_reason"] = report["packing_reason"]
     if "micro.sfx" in report["binaries"]:
         info["micro"] = report["binaries"]["micro.sfx"]
 (output / (base + ".json")).write_text(json.dumps(info, indent=2) + "\n")

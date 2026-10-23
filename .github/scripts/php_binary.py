@@ -6,7 +6,18 @@ import subprocess
 import tempfile
 
 UPX_VERSION = "5.2.1"
+UPX_ARM_GLIBC_FALLBACK = "upx-5.2.1-arm64-hatch"
 PROBE = '<?php echo json_encode(["version"=>PHP_VERSION,"extensions"=>get_loaded_extensions(),"icu"=>defined("INTL_ICU_VERSION")]);'
+
+
+def current_linux_profile(info, target):
+    if info.get("upx_version") != UPX_VERSION:
+        return False
+    if info.get("packing") == "upx":
+        return True
+    return (UPX_VERSION == "5.2.1" and target["arch"] == "aarch64"
+            and target["suffix"] == "-glibc" and info.get("packing") == "none"
+            and info.get("packing_reason") == UPX_ARM_GLIBC_FALLBACK)
 
 
 def metadata(cli):

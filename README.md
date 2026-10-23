@@ -21,7 +21,7 @@ This repository is used to automatically compile static-php-cli related content 
 
 各分支的完整构建版本与官方源码 SHA-256 统一保存在 [`.github/php-releases.json`](.github/php-releases.json)，由更新检查自动维护。
 PHP 8.1 不再构建或列入支持列表。
-所有 Unix CLI 和 micro.sfx 均不包含 intl/ICU，保留原有其余扩展，不提供 intl 变体。Linux CLI 和 micro.sfx 使用固定版本 UPX 5.2.1 `--best`，macOS 不加壳。
+所有 Unix CLI 和 micro.sfx 均不包含 intl/ICU，保留原有其余扩展，不提供 intl 变体。Linux CLI 和已发布的 micro.sfx 默认使用固定版本 UPX 5.2.1 `--best`，macOS 不加壳。ARM64 glibc CLI 遇到该版本 UPX 的加载器边界问题时，保留已通过原生验证的未加壳文件，并在元数据中记录原因。
 CI 在加壳前直接检查 ICU 数据、扩展、实际大小（不超过 80 MiB）以及 glibc 2.17 符号基线；加壳后核对完整版本、全部扩展和 TCP 通信，并实际执行 webman 的 build:bin 和打包后的 HTTP 服务。CLI 和 micro.sfx 的加壳前后大小、SHA-256 记录在发布元数据中。
 可勾选 `validation-only`，先仅编译 PHP 8.3 Linux x86_64，比较旧版与新版的实际文件大小、同一 webman 应用的进程树 PSS 内存；此模式不会发布。
 
@@ -56,6 +56,8 @@ CLI 的版本、完整扩展列表和 UPX 完整性检查通过；micro 在加�
 UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以上数据仅代表这个 PHP 版本、平台和测试应用。
 
 如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布会等待原构建和上传全部成功，再验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
+
+UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。本次通过原生 gdb/strace 定位到 PHP 8.4.27 ARM64 glibc 的这个布局；该 CLI 使用 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch`，仍包含同一 PHP 安全修复且不含 intl/ICU。其它 Linux CLI 与全部四个 x86_64 打包运行时已通过 UPX 原生运行检查。后续安全版本会重新检查布局，允许加壳时自动恢复 UPX。每周检查识别这个兼容策略，避免对已正确发布的包反复编译。
 
 ### 每周自动更新
 

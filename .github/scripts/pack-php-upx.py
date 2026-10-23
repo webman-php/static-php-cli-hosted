@@ -11,12 +11,44 @@ import tarfile
 import tempfile
 from urllib.request import urlopen
 
-from php_binary import UPX_VERSION, metadata, verify_glibc, verify_micro, verify_runtime, verify_unpacked
+from php_binary import UPX_ARM_GLIBC_FALLBACK, UPX_VERSION, metadata, verify_glibc, verify_micro, verify_runtime, verify_unpacked
 
 ASSETS = {
     "x86_64": ("amd64", "402162aad30af47e60dbd767fb2e64ca394ace9727ba1f40283641f1d1b91657"),
     "aarch64": ("arm64", "a72d112c5970a904a31da0b9c84f919bc16b9a311787c12245508544a78c7d36"),
 }
+
+
+def lacks_arm_hatch(binary):
+    """UPX 5.2.1's ARM loader traps when no executable page has 8 spare bytes.
+
+    The fallback allocator in arm64-linux.elf-fold is a breakpoint. Native gdb
+    and strace confirmed this path for PHP 8.4.27 aarch64 glibc. Keep the
+    original ELF rather than changing code, page permissions or the loader.
+    """
+    data = binary.read_bytes()
+    assert data[:6] == b"\x7fELF\x02\x01" and struct.unpack_from("<H", data, 18)[0] == 183
+    offset = struct.unpack_from("<Q", data, 32)[0]
+    width, count = struct.unpack_from("<HH", data, 54)
+    assert width == 56 and 1 <= count <= 128 and offset + width * count <= len(data)
+    page = os.sysconf("SC_PAGE_SIZE")
+    ends = []
+    for index in range(count):
+        kind, flags, _, address, _, _, memory, _ = struct.unpack_from("<IIQQQQQQ", data, offset + index * width)
+        if kind == 1 and flags & 1 and memory:
+            ends.append((address + memory + 3) & ~3)
+    assert ends
+    return all((-end) & (page - 1) < 8 for end in ends)
+
+
+def emit_report(result):
+    output = Path("validation")
+    output.mkdir(exist_ok=True)
+    (output / "upx-pack.json").write_text(json.dumps(result, indent=2) + "\n")
+    print(json.dumps(result, indent=2), flush=True)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+            summary.write("### Verified Linux packing profile\n\n```json\n" + json.dumps(result, indent=2) + "\n```\n")
 
 
 def trim_micro(path):
@@ -116,6 +148,13 @@ def main():
         verify_glibc(cli)
     if micro.exists():
         verify_micro(micro, expected)
+    if UPX_VERSION == "5.2.1" and arch == "aarch64" and os.environ.get("TARGET_SUFFIX") == "-glibc" and lacks_arm_hatch(cli):
+        verify_candidate(cli, False, expected, arch)
+        data = cli.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        emit_report(dict(packing="none", upx_version=UPX_VERSION, packing_reason=UPX_ARM_GLIBC_FALLBACK,
+                         binaries={"php": dict(unpacked_bytes=len(data), unpacked_sha256=digest, binary_bytes=len(data), sha256=digest, upx_options=[])}))
+        return
     records = {}
     with tempfile.TemporaryDirectory(prefix="php-upx-") as temporary:
         temporary = Path(temporary)
@@ -138,7 +177,7 @@ def main():
             reused = restore_reused(candidate, binary, binary == micro, original_digest, expected, arch, upx)
             options = ["--best"]
             if reused is None:
-                variants = [["--best", "--lzma", "--unmap-all-pages"]] if arch == "aarch64" and os.environ.get("TARGET_SUFFIX") == "-glibc" else [["--best"]]
+                variants = [["--best"]]
                 for index, options in enumerate(variants):
                     candidate.write_bytes(original)
                     candidate.chmod(0o755)
@@ -169,13 +208,7 @@ def main():
     if micro.exists():
         verify_micro(micro, expected)
     result = dict(packing="upx", upx_version=UPX_VERSION, binaries=records)
-    output = Path("validation")
-    output.mkdir(exist_ok=True)
-    (output / "upx-pack.json").write_text(json.dumps(result, indent=2) + "\n")
-    print(json.dumps(result, indent=2), flush=True)
-    if os.environ.get("GITHUB_STEP_SUMMARY"):
-        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
-            summary.write("### Verified Linux UPX conversion\n\n```json\n" + json.dumps(result, indent=2) + "\n```\n")
+    emit_report(result)
 
 
 if __name__ == "__main__":

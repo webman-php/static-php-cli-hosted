@@ -6,7 +6,7 @@ from pathlib import Path
 import tarfile
 import zipfile
 
-from php_binary import UPX_VERSION
+from php_binary import current_linux_profile
 from php_releases import MANIFEST, build_targets, package_name
 
 root = Path(os.environ.get("RELEASE_DIR", "release"))
@@ -23,13 +23,15 @@ for release in releases:
         assert "intl" not in info["extensions"], base + ": obsolete intl profile"
         if target["os"] != "linux":
             continue
-        assert info["packing"] == "upx" and info["upx_version"] == UPX_VERSION, base + ": obsolete UPX profile"
+        assert current_linux_profile(info, target), base + ": obsolete UPX profile"
         archive = root / (base + ".tar.gz")
         with tarfile.open(archive) as bundle:
             assert bundle.getnames() == ["php"]
             binary = bundle.extractfile("php").read()
         assert hashlib.sha256(binary).hexdigest() == info["sha256"], base + ": binary digest mismatch"
-        assert len(binary) == info["binary_bytes"] < info["unpacked_bytes"] < 80 * 1024 * 1024
+        assert len(binary) == info["binary_bytes"] <= info["unpacked_bytes"] < 80 * 1024 * 1024
+        if info["packing"] == "none":
+            assert info["binary_bytes"] == info["unpacked_bytes"] and info["sha256"] == info["unpacked_sha256"]
         if target["arch"] == "x86_64" and not target["suffix"]:
             for name, record in [("php" + release["branch"], info), ("php" + release["branch"] + ".micro.sfx", info["micro"])]:
                 raw = (root / name).read_bytes()
