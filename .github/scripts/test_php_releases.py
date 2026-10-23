@@ -13,7 +13,7 @@ class ReleaseChecksTest(unittest.TestCase):
     def setUp(self):
         self.current = json.loads(releases.MANIFEST.read_text())
         self.published = {
-            releases.package_name(item["branch"], target): {"php_version": item["version"]}
+            releases.package_name(item["branch"], target): {"php_version": item["version"], **({"packing": "upx", "upx_version": releases.UPX_VERSION} if target["os"] == "linux" else {})}
             for item in self.current for target in releases.build_targets()
         }
 
@@ -41,6 +41,14 @@ class ReleaseChecksTest(unittest.TestCase):
     def test_same_version_with_obsolete_intl_build_retries(self):
         self.published["php-8.3-linux-x86_64"]["extensions"] = ["intl", "curl"]
         self.assertEqual(["php-8.3-linux-x86_64: replace the obsolete intl/ICU build"], releases.decide_updates(self.current, self.current, self.published))
+
+    def test_same_version_with_missing_upx_profile_retries(self):
+        self.published["php-8.3-linux-x86_64"].pop("packing")
+        self.assertEqual(["php-8.3-linux-x86_64: publish the UPX " + releases.UPX_VERSION + " profile"], releases.decide_updates(self.current, self.current, self.published))
+
+    def test_macos_does_not_need_upx_metadata(self):
+        self.assertNotIn("packing", self.published["php-8.3-macos-aarch64"])
+        self.assertEqual([], releases.decide_updates(self.current, self.current, self.published))
 
     def test_manifest_and_public_downloads_never_downgrade(self):
         latest = copy.deepcopy(self.current)

@@ -75,6 +75,10 @@ jobs:
           for branch in 8.2 8.3 8.4 8.5; do
             chmod 755 "php$branch" "php$branch.micro.sfx"
           done
+      - name: Verify current PHP, no-intl and Linux UPX profiles
+        env:
+          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
+        run: python3 .github/scripts/verify-release-artifacts.py
       - name: Upload through the PHP-only SSH endpoint
         run: |
           rsync -rltpz --delay-updates --timeout=300 \

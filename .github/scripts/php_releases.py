@@ -10,6 +10,8 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from php_binary import UPX_VERSION
+
 BRANCHES = ("8.2", "8.3", "8.4", "8.5")
 MANIFEST = Path(__file__).resolve().parents[1] / "php-releases.json"
 PUBLIC_URL = "https://download.workerman.net/php/"
@@ -116,6 +118,8 @@ def decide_updates(current, latest, published):
                 pending.append(f"{name}: {metadata['php_version']} -> {new['version']}")
             elif "intl" in metadata.get("extensions", []):
                 pending.append(f"{name}: replace the obsolete intl/ICU build")
+            elif target["os"] == "linux" and (metadata.get("packing") != "upx" or metadata.get("upx_version") != UPX_VERSION):
+                pending.append(f"{name}: publish the UPX {UPX_VERSION} profile")
     return pending
 
 

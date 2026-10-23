@@ -109,58 +109,27 @@ jobs:
       - name: Build CLI and micro
         run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
 
-      - name: Reject intl, bundled ICU data, packed executables and oversized binaries
+      - name: Verify unpacked binaries contain no intl, ICU or oversized payload
         env:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+          TARGET_SUFFIX: ${{ matrix.target.suffix }}
         run: python3 .release-tools/.github/scripts/verify-lean-build.py
+
+      - name: Pack Linux CLI and micro with verified UPX
+        if: matrix.target.os == 'linux'
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+          TARGET_ARCH: ${{ matrix.target.arch }}
+          TARGET_SUFFIX: ${{ matrix.target.suffix }}
+        run: python3 .release-tools/.github/scripts/pack-php-upx.py
 
       - name: Verify and package
         env:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          PHP_BIN=buildroot/bin/php
-          "$PHP_BIN" -n -v
-          if [ '${{ matrix.target.suffix }}' = '-glibc' ]; then
-            readelf --version-info "$PHP_BIN" > dist/glibc-symbols.txt
-            python3 - <<'PYTHON'
-          import re
-          from pathlib import Path
-          versions = [tuple(map(int, x.split('.'))) for x in re.findall(r'GLIBC_([0-9.]+)', Path('dist/glibc-symbols.txt').read_text())]
-          assert versions and max(versions) <= (2, 17), f'glibc requirement exceeds 2.17: {max(versions) if versions else "none"}'
-          print('glibc 2.17 symbol baseline verified')
-          PYTHON
-            rm dist/glibc-symbols.txt
-          fi
-          test "$("$PHP_BIN" -n -r 'echo PHP_VERSION;')" = "$EXPECTED_PHP_VERSION"
-          "$PHP_BIN" -n -r '
-            foreach (["pcntl", "posix", "sockets", "openssl", "curl", "mbstring", "event", "redis", "apcu", "sodium", "gd", "imagick"] as $ext) {
-                if (!extension_loaded($ext)) { fwrite(STDERR, "Missing extension: $ext\n"); exit(1); }
-            }
-            $server = stream_socket_server("tcp://127.0.0.1:0", $errno, $error);
-            if (!$server) { throw new RuntimeException($error); }
-            $client = stream_socket_client("tcp://" . stream_socket_get_name($server, false));
-            $peer = stream_socket_accept($server, 5);
-            fwrite($client, "workerman\n");
-            if (fgets($peer) !== "workerman\n") { exit(1); }
-            echo "Socket smoke test passed\n";
-          '
-          BASE=php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
-          "$PHP_BIN" -n -m > "dist/$BASE.extensions.txt"
-          "$PHP_BIN" -n -r 'echo json_encode(["php_version" => PHP_VERSION, "extensions" => get_loaded_extensions()], JSON_PRETTY_PRINT), PHP_EOL;' > "dist/$BASE.json"
-          tar -czf "dist/$BASE.tar.gz" -C buildroot/bin php
-          (cd dist && shasum -a 256 "$BASE.tar.gz" > "$BASE.tar.gz.sha256")
-          # Keep old installer URLs working while macos is the canonical name.
-          if [ '${{ matrix.target.os }}' = macos ]; then
-            cp "dist/$BASE.tar.gz" "dist/php-${{ matrix.php.branch }}-mac-${{ matrix.target.arch }}.tar.gz"
-          fi
-          if [ '${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}' = linux-x86_64 ]; then
-            cp "$PHP_BIN" "dist/php${{ matrix.php.branch }}"
-            (cd dist && zip "php${{ matrix.php.branch }}.zip" "php${{ matrix.php.branch }}")
-            cp buildroot/bin/micro.sfx "dist/php${{ matrix.php.branch }}.micro.sfx"
-            (cd dist && zip "php${{ matrix.php.branch }}.micro.sfx.zip" "php${{ matrix.php.branch }}.micro.sfx")
-          fi
+          TARGET_OS: ${{ matrix.target.os }}
+          TARGET_ARCH: ${{ matrix.target.arch }}
+          TARGET_SUFFIX: ${{ matrix.target.suffix }}
+        run: python3 .release-tools/.github/scripts/package-php.py
 
       - uses: actions/upload-artifact@v4
         with:

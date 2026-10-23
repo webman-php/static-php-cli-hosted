@@ -1,4 +1,4 @@
-import json, os, time, urllib.request
+import hashlib, json, os, re, time, urllib.request
 from pathlib import Path
 root = Path(os.environ.get('RELEASE_DIR', 'release'))
 checksums = sorted(root.glob('*.tar.gz.sha256'))
@@ -18,3 +18,23 @@ for checksum in checksums:
                 raise
             time.sleep(2)
     print('Public download verified:', base, expected['php_version'])
+
+# build:bin downloads the raw micro or ZIP rather than the canonical CLI tar.
+for binary in sorted(root.iterdir()):
+    if not re.fullmatch(r"php8\.[2-5](?:\.micro\.sfx)?(?:\.zip)?", binary.name):
+        continue
+    expected = hashlib.sha256(binary.read_bytes()).hexdigest()
+    for attempt in range(4):
+        try:
+            digest = hashlib.sha256()
+            request = urllib.request.Request('https://download.workerman.net/php/' + binary.name + '?verify=' + str(time.time_ns()), headers={'Cache-Control': 'no-cache'})
+            with urllib.request.urlopen(request, timeout=120) as response:
+                for block in iter(lambda: response.read(1024 * 1024), b''):
+                    digest.update(block)
+            assert digest.hexdigest() == expected, binary.name + ': stale public raw/ZIP file'
+            break
+        except Exception:
+            if attempt == 3:
+                raise
+            time.sleep(2)
+    print('Public raw/ZIP verified:', binary.name, flush=True)

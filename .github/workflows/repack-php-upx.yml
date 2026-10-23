@@ -1,0 +1,149 @@
+name: Pack existing Linux PHP with UPX
+
+on:
+  workflow_dispatch:
+    inputs:
+      source-run-id:
+        description: Unix build run containing the complete uncompressed no-intl release
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: static-php-upx-repack
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      php: ${{ steps.targets.outputs.php }}
+      targets: ${{ steps.targets.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check source workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source-run-id }}
+        run: python3 .github/scripts/wait-php-source.py --check-only
+      - id: targets
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, sys
+          sys.path.insert(0, '.github/scripts')
+          from php_releases import MANIFEST, build_targets, validate_manifest
+          php = validate_manifest(json.loads(MANIFEST.read_text()))
+          targets = [item for item in build_targets() if item['os'] == 'linux']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('php=' + json.dumps(php) + '\n')
+              output.write('targets=' + json.dumps(targets) + '\n')
+          PYTHON
+
+  pack-linux:
+    name: UPX PHP ${{ matrix.php.version }} / ${{ matrix.target.arch }}${{ matrix.target.suffix }}
+    needs: plan
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(needs.plan.outputs.php) }}
+        target: ${{ fromJSON(needs.plan.outputs.targets) }}
+    env:
+      EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+      TARGET_OS: linux
+      TARGET_ARCH: ${{ matrix.target.arch }}
+      TARGET_SUFFIX: ${{ matrix.target.suffix }}
+      PACKAGE_BASE: php-${{ matrix.php.branch }}-linux-${{ matrix.target.arch }}${{ matrix.target.suffix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source-run-id }}
+          name: ${{ env.PACKAGE_BASE }}
+          path: source/
+      - name: Verify and restore the original artifact
+        run: python3 .github/scripts/prepare-php-artifact.py
+      - name: Verify plain binaries, apply UPX and test the packed runtimes
+        run: python3 .github/scripts/pack-php-upx.py
+      - name: Package verified UPX binaries
+        run: python3 .github/scripts/package-php.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_BASE }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Setup composer for the real webman check
+        if: matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+      - name: Build and run a real webman binary with UPX
+        if: matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        env:
+          COMPARE_PUBLIC: 'false'
+        run: python3 .github/scripts/smoke-webman-bin.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-${{ env.PACKAGE_BASE }}
+          path: validation/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  preserve-macos:
+    name: Preserve the verified macOS packages
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+      # Waiting for success also prevents the original uncompressed publisher
+      # from running after this UPX publication and overwriting the new files.
+      - name: Wait for the complete source release to succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source-run-id }}
+        run: python3 .github/scripts/wait-php-source.py
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source-run-id }}
+          pattern: php-*-macos-*
+          path: dist/
+          merge-multiple: true
+      - name: Verify macOS checksums and absence of intl
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json
+          from pathlib import Path
+          root = Path('dist')
+          records = list(root.glob('*.json'))
+          assert len(records) == 8
+          for record in records:
+              metadata = json.loads(record.read_text())
+              assert 'intl' not in metadata['extensions']
+              archive = record.with_suffix('.tar.gz')
+              assert archive.with_suffix('.gz.sha256').read_text().split() == [hashlib.sha256(archive.read_bytes()).hexdigest(), archive.name]
+          PYTHON
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-macos-unpacked
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [pack-linux, preserve-macos]
+    uses: ./.github/workflows/deploy-php-unix.yml
+    with:
+      source-run-id: '${{ github.run_id }}'
+      expected-packages: 24
+    secrets:
+      DEPLOY_SERVER_SECRET_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}

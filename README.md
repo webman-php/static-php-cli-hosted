@@ -21,8 +21,8 @@ This repository is used to automatically compile static-php-cli related content 
 
 各分支的完整构建版本与官方源码 SHA-256 统一保存在 [`.github/php-releases.json`](.github/php-releases.json)，由更新检查自动维护。
 PHP 8.1 不再构建或列入支持列表。
-所有 Unix CLI 和 micro.sfx 均不包含 intl/ICU，保留原有其余扩展；不提供 intl 变体，也不使用 UPX。
-CI 直接检查未压缩文件的 ICU 数据、扩展和大小（每个可执行文件不超过 80 MiB），并实际执行 webman 的 build:bin 和打包后的 HTTP 服务。
+所有 Unix CLI 和 micro.sfx 均不包含 intl/ICU，保留原有其余扩展，不提供 intl 变体。Linux CLI 和 micro.sfx 使用固定版本 UPX 5.2.1 `--best`，macOS 不加壳。
+CI 在加壳前直接检查 ICU 数据、扩展、实际大小（不超过 80 MiB）以及 glibc 2.17 符号基线；加壳后核对完整版本、全部扩展和 TCP 通信，并实际执行 webman 的 build:bin 和打包后的 HTTP 服务。CLI 和 micro.sfx 的加壳前后大小、SHA-256 记录在发布元数据中。
 可勾选 `validation-only`，先仅编译 PHP 8.3 Linux x86_64，比较旧版与新版的实际文件大小、同一 webman 应用的进程树 PSS 内存；此模式不会发布。
 
 Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
@@ -42,7 +42,7 @@ Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 
 ### UPX 对比试验（2026-10-23）
 
-使用 PHP 8.3.36 Linux x86_64 musl 无 intl 产物和 UPX 5.2.1 `--best`，仅测试副本；此试验没有改变默认发布配置。
+使用 PHP 8.3.36 Linux x86_64 musl 无 intl 产物和 UPX 5.2.1 `--best`，试验通过后，正式 Linux 包及后续每周更新采用该配置。
 
 | 文件 | 加壳前 | 加壳后 |
 | --- | ---: | ---: |
@@ -53,7 +53,9 @@ Linux x86_64 继续发布 `php8.x`、`php8.x.micro.sfx` 与对应 ZIP。
 
 CLI 的版本、完整扩展列表和 UPX 完整性检查通过；micro 在加壳后按 [SPC 的补丁](https://github.com/crazywhalecc/static-php-cli/blob/84ff669ee513609bc75aa43a87e2f3a349b37109/src/Package/Target/php/unix.php#L689) 截去尾段，再附加同一份 PHAR，实际启动并验证 HTTP 响应。
 在同一服务器交替运行三次，8 个业务 worker（含 master、monitor 共 10 个进程）的进程树 PSS 中位数为 66,449 → 85,469 KiB，HTTP 就绪时间中位数为 87.45 → 330.70 ms。
-UPX 明显缩小磁盘文件，不能减少运行内存；本次测试运行内存增加约 18.6 MiB。以上数据仅代表这个 PHP 版本、平台和测试应用。
+UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以上数据仅代表这个 PHP 版本、平台和测试应用。
+
+如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布会等待原构建和上传全部成功，再验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
 
 ### 每周自动更新
 

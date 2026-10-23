@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           active=false
-          for workflow in build-php-unix.yml deploy-php-unix.yml; do
+          for workflow in build-php-unix.yml repack-php-upx.yml deploy-php-unix.yml; do
             count=$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?branch=$DEFAULT_BRANCH&per_page=100" \
               --jq '[.workflow_runs[] | select(.status != "completed")] | length')
             if [ "$count" -gt 0 ]; then active=true; fi
