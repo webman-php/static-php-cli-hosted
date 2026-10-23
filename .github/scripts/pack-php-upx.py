@@ -92,9 +92,12 @@ def save_failure(candidate, index, error):
     if shutil.which("gdb"):
         with prefix.with_suffix(".gdb.log").open("w") as log:
             try:
-                subprocess.run(["gdb", "--batch", "-ex", "run", "-ex", "x/12i $pc-16", "-ex", "bt", "--args", str(candidate), "-n", "-r", "echo PHP_VERSION;"], stdout=log, stderr=subprocess.STDOUT, timeout=30)
+                subprocess.run(["gdb", "--batch", "-ex", "run", "-ex", "x/12i $pc-16", "-ex", "bt", "-ex", "info registers", "-ex", "info proc mappings", "--args", str(candidate), "-n", "-r", "echo PHP_VERSION;"], stdout=log, stderr=subprocess.STDOUT, timeout=30)
             except subprocess.TimeoutExpired:
                 pass
+    if shutil.which("strace"):
+        with prefix.with_suffix(".strace.log").open("w") as log:
+            subprocess.run(["strace", "-f", str(candidate), "-n", "-r", "echo PHP_VERSION;"], stdout=log, stderr=subprocess.STDOUT, timeout=30)
 
 
 def main():
@@ -104,7 +107,9 @@ def main():
     cli = Path("buildroot/bin/php").resolve()
     micro = Path("buildroot/bin/micro.sfx").resolve()
     expected = verify_runtime(cli, os.environ["EXPECTED_PHP_VERSION"])
-    binaries = [cli] + ([micro] if micro.exists() else [])
+    # Only musl x86_64 micro is distributed and used by webman build:bin.
+    published_micro = micro.exists() and arch == "x86_64" and not os.environ.get("TARGET_SUFFIX")
+    binaries = [cli] + ([micro] if published_micro else [])
     for binary in binaries:
         verify_unpacked(binary)
     if os.environ.get("TARGET_SUFFIX") == "-glibc":
@@ -133,7 +138,7 @@ def main():
             reused = restore_reused(candidate, binary, binary == micro, original_digest, expected, arch, upx)
             options = ["--best"]
             if reused is None:
-                variants = [["--best", "--no-filter"], ["--best", "--lzma"]] if arch == "aarch64" and os.environ.get("TARGET_SUFFIX") == "-glibc" else [["--best"]]
+                variants = [["--best", "--lzma", "--unmap-all-pages"]] if arch == "aarch64" and os.environ.get("TARGET_SUFFIX") == "-glibc" else [["--best"]]
                 for index, options in enumerate(variants):
                     candidate.write_bytes(original)
                     candidate.chmod(0o755)

@@ -81,6 +81,11 @@ jobs:
           path: reused/
       - name: Verify and restore the original artifact
         run: python3 .github/scripts/prepare-php-artifact.py
+      - name: Install native diagnostics for ARM glibc
+        if: matrix.target.arch == 'aarch64' && matrix.target.suffix == '-glibc' && matrix.php.branch == '8.4'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends gdb strace
       - name: Verify plain binaries, apply UPX and test the packed runtimes
         run: python3 .github/scripts/pack-php-upx.py
       - name: Package verified UPX binaries
