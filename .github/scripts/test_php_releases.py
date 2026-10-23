@@ -2,6 +2,8 @@ import copy
 import json
 import os
 from pathlib import Path
+import runpy
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -59,6 +61,25 @@ class ReleaseChecksTest(unittest.TestCase):
         pending = releases.decide_updates(self.current, self.current, self.published)
         self.assertEqual(1, len(pending))
         self.assertTrue(pending[0].startswith("php-8.4-linux-x86_64:"))
+
+    def test_arm_hatch_guard_matches_the_native_php84_failure(self):
+        check = runpy.run_path(str(Path(__file__).with_name("pack-php-upx.py")))["lacks_arm_hatch"]
+        header = bytearray(120)
+        header[:6] = b"\x7fELF\x02\x01"
+        struct.pack_into("<H", header, 18, 183)
+        struct.pack_into("<Q", header, 32, 64)
+        struct.pack_into("<HH", header, 54, 56, 1)
+        # Actual executable PT_LOAD values from the failing PHP 8.4.27 build.
+        struct.pack_into("<IIQQQQQQ", header, 64, 1, 5, 29015936, 29081472, 29081472, 36585600, 36585600, 65536)
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "php"
+            binary.write_bytes(header)
+            with patch("os.sysconf", return_value=4096):
+                self.assertTrue(check(binary))
+                # Eight available bytes are sufficient for the two ARM instructions.
+                struct.pack_into("<Q", header, 64 + 40, 36585600 - 8)
+                binary.write_bytes(header)
+                self.assertFalse(check(binary))
 
     def test_manifest_and_public_downloads_never_downgrade(self):
         latest = copy.deepcopy(self.current)
