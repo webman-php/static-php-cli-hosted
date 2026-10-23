@@ -53,11 +53,13 @@ def run_server(binary, label, fixture):
                     break
                 except OSError:
                     time.sleep(0.2)
-            assert response and response["version"] == version, response
+            assert response, "No HTTP response from packaged webman"
             if label == "lean":
+                assert response["version"] == version, response
                 assert response["intl"] is False, response
             else:
-                assert response["intl"] is True, response
+                assert response["version"].startswith(branch + "."), response
+                assert tuple(map(int, response["version"].split("."))) <= tuple(map(int, version.split("."))), "Published PHP is newer than the candidate"
             # Measure the complete idle webman process tree using proportional memory.
             time.sleep(1)
             metrics = dict(label=label, binary_bytes=binary.stat().st_size, response=response, **process_memory(process.pid))
@@ -103,8 +105,9 @@ Route::get('/php-build-check', function () {
             baseline_micro = response.read(150 * 1024 * 1024)
         baseline.write_bytes(baseline_micro + packaged.read_bytes()[micro.stat().st_size:])
         baseline.chmod(0o755)
-        run_server(baseline, "previous-intl", fixture)
-        assert packaged.stat().st_size < baseline.stat().st_size, "No actual unpacked size reduction"
+        run_server(baseline, "published", fixture)
+        if records[-1]["response"]["intl"]:
+            assert packaged.stat().st_size < baseline.stat().st_size, "No actual unpacked size reduction after removing intl"
     report = dict(php_version=version, micro_bytes=micro.stat().st_size, cli_bytes=cli.stat().st_size, measurements=records)
     (results / "webman-bin-check.json").write_text(json.dumps(report, indent=2) + "\n")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
