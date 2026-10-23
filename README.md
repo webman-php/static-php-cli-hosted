@@ -32,8 +32,8 @@ Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
 glibc 产物还会通过 ELF 符号检查，确认所需 glibc 不高于 2.17。
 所有选定组合通过后才合并产物，调用可复用的 `Publish static PHP` workflow，使用已有 `DEPLOY_SERVER_SECRET_KEY` 上传服务器。
 发布经过 `workerman.net` 连接下载机 `ubuntu@10.0.24.5`，目标固定为 `/home/www/download.workerman.net/public/php/`；不再依赖过期的 HOST、USER、PORT、TARGET secrets。
-服务器在每次上传前，将原下载目录保存到公开目录之外的 `/home/www/php-release-backups/<UTC时间>-<PID>/`。备份使用硬链接，上传使用临时文件和原子替换。
-部署公钥在网关上仅可连接下载机 SSH 端口，在下载机上仅可通过 rrsync 写入 PHP 下载目录，不能启动 shell 或删除文件。
+服务器在每次上传前，将原下载目录保存到公开目录之外的 `/home/www/php-release-backups/<UTC时间>-<PID>/`。备份使用硬链接，发布使用私有暂存目录和原子替换，最后更新版本 JSON。
+部署公钥在网关上仅可连接下载机 SSH 端口，在下载机上仅可写入 PHP 下载目录，不能启动 shell、执行上传文件或删除下载文件。正式发布由下载机经 HTTPS 拉取经过校验的 GitHub artifact，SSH 只传短效下载清单，避免跨境 SSH 大文件传输超时；保留兼容 rrsync 接口。
 SSH 主机公钥固定在 `.github/php-deploy-known-hosts`，连接配置位于 `.github/php-deploy-ssh-config`。
 Actions artifacts 同时保留压缩包、SHA-256、扩展列表和版本 JSON。
 上传后会通过公开下载地址再次核对每个包的校验文件与版本 JSON，避免上传目标或缓存错误导致页面仍提供旧版本。
@@ -55,7 +55,7 @@ CLI 的版本、完整扩展列表和 UPX 完整性检查通过；micro 在加�
 在同一服务器交替运行三次，8 个业务 worker（含 master、monitor 共 10 个进程）的进程树 PSS 中位数为 66,449 → 85,469 KiB，HTTP 就绪时间中位数为 87.45 → 330.70 ms。
 UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以上数据仅代表这个 PHP 版本、平台和测试应用。
 
-如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布会等待原构建和上传全部成功，再验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
+如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布要求原构建的全部 24 个 PHP 编译任务成功，并等待原发布进程结束；原上传失败或取消时也能复用已验证的产物。随后验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
 
 UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。本次通过原生 gdb/strace 定位到 PHP 8.4.27 ARM64 glibc 的这个布局；该 CLI 使用 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch`，仍包含同一 PHP 安全修复且不含 intl/ICU。其它 Linux CLI 与全部四个 x86_64 打包运行时已通过 UPX 原生运行检查。后续安全版本会重新检查布局，允许加壳时自动恢复 UPX。每周检查识别这个兼容策略，避免对已正确发布的包反复编译。
 
@@ -75,7 +75,7 @@ UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时�
 
 如果编译已通过、仅上传失败，可打开 [Actions → Publish static PHP → Run workflow](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/deploy-php-unix.yml)，
 填入原构建的 run ID 和包数量（含 glibc 为 24，否则为 16），直接重试上传，无需重新编译。产物保留 30 天。
-部署公钥可在 Configure restricted SSH deployment 步骤查看；服务器授权接收器源码位于 `.github/scripts/receive-static-php-rsync.py`。
+部署公钥可在 Configure restricted SSH deployment 步骤查看；服务器授权入口位于 `.github/scripts/receive-static-php-rsync.py`，HTTPS 接收器为 `.github/scripts/receive-static-php-pull.py`，两者安装到 `/usr/local/libexec/` 并由 root 持有。接收器仅接受 GitHub 官方 artifact 存储域名，核对整个 artifact 和每个 PHP 文件的 SHA-256、文件名、版本及扩展清单，备份后才替换公开文件；不会运行上传的代码。
 
 上线后检查 https://download.workerman.net/php/list 与 https://www.workerman.net/download，
 并在对应系统解压运行 `./php -n -v`、`./php -n -m`。

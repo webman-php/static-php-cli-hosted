@@ -36,7 +36,7 @@ jobs:
   publish:
     name: Publish verified binaries
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Validate release inputs
@@ -79,10 +79,21 @@ jobs:
         env:
           EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
         run: python3 .github/scripts/verify-release-artifacts.py
-      - name: Upload through the PHP-only SSH endpoint
-        run: |
-          rsync -rltpz --delay-updates --timeout=300 \
-            --rsync-path=/usr/local/libexec/receive-static-php-rsync \
-            -e 'ssh -F .github/php-deploy-ssh-config' release/ php-origin:./
+      - name: Bundle verified files for the download server
+        id: pull-bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-for-server-pull
+          path: release/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish through the PHP-only HTTPS pull endpoint
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.pull-bundle.outputs.artifact-id }}
+          ARTIFACT_SHA256: ${{ steps.pull-bundle.outputs.artifact-digest }}
+          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
+        run: python3 .github/scripts/pull-php-release.py
       - name: Verify public downloads
         run: python3 .github/scripts/verify-public-php.py

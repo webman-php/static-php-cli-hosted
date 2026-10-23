@@ -117,9 +117,8 @@ jobs:
     timeout-minutes: 200
     steps:
       - uses: actions/checkout@v4
-      # Waiting for success also prevents the original uncompressed publisher
-      # from running after this UPX publication and overwriting the new files.
-      - name: Wait for the complete source release to succeed
+      # Every build must pass, and the source publisher must have stopped.
+      - name: Wait for all source builds and the original publisher to finish
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN_ID: ${{ inputs.source-run-id }}

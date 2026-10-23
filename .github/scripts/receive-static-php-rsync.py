@@ -12,11 +12,13 @@ BACKUPS = Path('/home/www/php-release-backups')
 COMMAND = '/usr/local/libexec/receive-static-php-rsync'
 
 args = sys.argv[1:]
-if len(args) == 1:
+if len(args) == 1 and args != ['--pull']:
     command = shlex.split(args[0])
     if not command or command.pop(0) not in ('rsync', COMMAND):
         sys.exit('Only PHP rsync uploads are permitted')
     args = command
+if args == ['--pull']:
+    os.execv('/usr/local/libexec/receive-static-php-pull', ['/usr/local/libexec/receive-static-php-pull'])
 if not args or args[0] != '--server' or '--sender' in args:
     sys.exit('Only PHP rsync uploads are permitted')
 if any(arg.startswith(('--inplace', '--append')) for arg in args):
