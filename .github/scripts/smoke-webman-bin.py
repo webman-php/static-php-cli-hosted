@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import subprocess
 import tempfile
 import time
@@ -16,6 +17,9 @@ micro = Path("buildroot/bin/micro.sfx").resolve()
 results = Path("validation").resolve()
 results.mkdir(exist_ok=True)
 records = []
+with socket.socket() as listener:
+    listener.bind(("127.0.0.1", 0))
+    port = listener.getsockname()[1]
 
 
 def process_memory(pid):
@@ -44,7 +48,7 @@ def run_server(binary, label, fixture):
                 if process.poll() is not None:
                     raise RuntimeError(f"{label} exited: {(results / f'{label}.log').read_text()[-6000:]}")
                 try:
-                    with urlopen("http://127.0.0.1:8787/php-build-check", timeout=1) as stream:
+                    with urlopen(f"http://127.0.0.1:{port}/php-build-check", timeout=1) as stream:
                         response = json.load(stream)
                     break
                 except OSError:
@@ -52,6 +56,8 @@ def run_server(binary, label, fixture):
             assert response and response["version"] == version, response
             if label == "lean":
                 assert response["intl"] is False, response
+            else:
+                assert response["intl"] is True, response
             # Measure the complete idle webman process tree using proportional memory.
             time.sleep(1)
             metrics = dict(label=label, binary_bytes=binary.stat().st_size, response=response, **process_memory(process.pid))
@@ -80,9 +86,11 @@ Route::get('/php-build-check', function () {
 });
 ''')
     # Keep the same one-worker workload for both binaries.
-    server = fixture / "config/server.php"
+    server = fixture / "config/process.php"
     import re
-    server.write_text(re.sub(r"(['\"]count['\"]\s*=>)[^\n]+", r"\1 1,", server.read_text()))
+    content = server.read_text().replace("http://0.0.0.0:8787", f"http://127.0.0.1:{port}")
+    assert f"http://127.0.0.1:{port}" in content, "webman fixture's HTTP listener changed"
+    server.write_text(re.sub(r"(['\"]count['\"]\s*=>)[^\n]+", r"\1 1,", content))
     build = fixture / "build"
     build.mkdir(exist_ok=True)
     shutil.copyfile(micro, build / f"php{branch}.micro.sfx")

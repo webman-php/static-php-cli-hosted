@@ -114,21 +114,6 @@ jobs:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
         run: python3 .release-tools/.github/scripts/verify-lean-build.py
 
-      - name: Build and run a real webman binary
-        if: matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
-        env:
-          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
-          COMPARE_PUBLIC: ${{ inputs.validation-only }}
-        run: python3 .release-tools/.github/scripts/smoke-webman-bin.py
-
-      - uses: actions/upload-artifact@v4
-        if: always() && matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
-        with:
-          name: validation-php-${{ matrix.php.branch }}
-          path: validation/
-          if-no-files-found: ignore
-          retention-days: 30
-
       - name: Verify and package
         env:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
@@ -182,6 +167,21 @@ jobs:
           name: php-${{ matrix.php.branch }}-${{ matrix.target.os }}-${{ matrix.target.arch }}${{ matrix.target.suffix }}
           path: dist/
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Build and run a real webman binary
+        if: matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+          COMPARE_PUBLIC: ${{ inputs.validation-only }}
+        run: python3 .release-tools/.github/scripts/smoke-webman-bin.py
+
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        with:
+          name: validation-php-${{ matrix.php.branch }}
+          path: validation/
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Upload build logs
