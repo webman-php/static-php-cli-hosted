@@ -15,7 +15,8 @@ function silencedYield(): int {
 
 check(extension_loaded('swoole'), 'Swoole missing');
 check(!function_exists('swoole_call_array_method'), 'stdext still enabled');
-$before = opcache_get_status(false)['jit'];
+$disabledJit = ['enabled' => false, 'on' => false, 'buffer_size' => 0, 'buffer_free' => 0];
+$before = opcache_get_status(false)['jit'] ?? $disabledJit;
 // Function JIT compiles a file on load. Load it after the baseline measurement.
 require __DIR__ . '/workload.php';
 $sum = 0;
@@ -25,7 +26,7 @@ for ($i = 0; $i < 1200; $i++) {
     $float += floating((float) ($i % 10));
     maybeExit(false);
 }
-$after = opcache_get_status(false)['jit'];
+$after = opcache_get_status(false)['jit'] ?? $disabledJit;
 $events = [];
 Swoole\Coroutine\run(function () use (&$events): void {
     $channel = new Swoole\Coroutine\Channel(1);

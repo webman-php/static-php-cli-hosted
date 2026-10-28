@@ -47,7 +47,7 @@ jobs:
           distribution: Ubuntu-24.04
           wsl-version: '2'
           additional-packages: python3
-      - name: Verify JIT CLI and micro on Linux
+      - name: Verify CLI JIT and micro production defaults on Linux
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -55,7 +55,7 @@ jobs:
           chmod +x candidate/buildroot/bin/php
           python3 .github/jit/run_checks.py --php "$PWD/candidate/buildroot/bin/php" --expect-jit yes --output results/cli.json
           python3 .github/jit/run_micro_checks.py --micro candidate/buildroot/bin/micro.sfx --output results/micro.json
-      - name: Verify JIT CLI and micro inside WSL2
+      - name: Verify CLI JIT and micro production defaults inside WSL2
         if: runner.os == 'Windows'
         shell: wsl-bash {0}
         run: |
