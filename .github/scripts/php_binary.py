@@ -6,8 +6,15 @@ import subprocess
 import tempfile
 
 UPX_VERSION = "5.2.1"
+JIT_PROFILE = "stdext-off-php85-traditional-v1"
 UPX_ARM_GLIBC_FALLBACK = "upx-5.2.1-arm64-hatch"
 PROBE = '<?php echo json_encode(["version"=>PHP_VERSION,"extensions"=>get_loaded_extensions(),"icu"=>defined("INTL_ICU_VERSION")]);'
+
+
+def current_jit_profile(info):
+    return (info.get("jit_profile") == JIT_PROFILE
+            and info.get("jit_compatible") is True
+            and info.get("swoole_stdext") is False)
 
 
 def current_linux_profile(info, target):

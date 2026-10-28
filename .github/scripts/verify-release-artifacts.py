@@ -6,7 +6,7 @@ from pathlib import Path
 import tarfile
 import zipfile
 
-from php_binary import current_linux_profile
+from php_binary import current_jit_profile, current_linux_profile
 from php_releases import MANIFEST, build_targets, package_name
 
 root = Path(os.environ.get("RELEASE_DIR", "release"))
@@ -21,6 +21,7 @@ for release in releases:
         info = json.loads((root / (base + ".json")).read_text())
         assert info["php_version"] == release["version"], base + ": stale PHP version"
         assert "intl" not in info["extensions"], base + ": obsolete intl profile"
+        assert current_jit_profile(info), base + ": incompatible JIT profile"
         if target["os"] != "linux":
             continue
         assert current_linux_profile(info, target), base + ": obsolete UPX profile"

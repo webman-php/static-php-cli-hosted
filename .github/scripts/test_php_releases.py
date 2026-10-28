@@ -9,14 +9,14 @@ import unittest
 from unittest.mock import patch
 
 import php_releases as releases
-from php_binary import UPX_ARM_GLIBC_FALLBACK
+from php_binary import JIT_PROFILE, UPX_ARM_GLIBC_FALLBACK
 
 
 class ReleaseChecksTest(unittest.TestCase):
     def setUp(self):
         self.current = json.loads(releases.MANIFEST.read_text())
         self.published = {
-            releases.package_name(item["branch"], target): {"php_version": item["version"], **({"packing": "upx", "upx_version": releases.UPX_VERSION} if target["os"] == "linux" else {})}
+            releases.package_name(item["branch"], target): {"php_version": item["version"], "jit_profile": JIT_PROFILE, "jit_compatible": True, "swoole_stdext": False, **({"packing": "upx", "upx_version": releases.UPX_VERSION} if target["os"] == "linux" else {})}
             for item in self.current for target in releases.build_targets()
         }
 
@@ -52,6 +52,14 @@ class ReleaseChecksTest(unittest.TestCase):
     def test_macos_does_not_need_upx_metadata(self):
         self.assertNotIn("packing", self.published["php-8.3-macos-aarch64"])
         self.assertEqual([], releases.decide_updates(self.current, self.current, self.published))
+
+    def test_same_php_with_missing_jit_profile_rebuilds(self):
+        self.published["php-8.5-macos-aarch64"].pop("jit_profile")
+        self.assertEqual(["php-8.5-macos-aarch64: publish the compatible JIT profile"], releases.decide_updates(self.current, self.current, self.published))
+
+    def test_stdext_cannot_claim_jit_compatibility(self):
+        self.published["php-8.2-linux-x86_64"]["swoole_stdext"] = True
+        self.assertEqual(["php-8.2-linux-x86_64: publish the compatible JIT profile"], releases.decide_updates(self.current, self.current, self.published))
 
     def test_native_verified_arm_glibc_hatch_fallback_does_not_rebuild_weekly(self):
         info = self.published["php-8.4-linux-aarch64-glibc"]

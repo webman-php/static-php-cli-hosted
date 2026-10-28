@@ -8,7 +8,7 @@ import subprocess
 import tarfile
 import zipfile
 
-from php_binary import UPX_VERSION, current_linux_profile, verify_micro, verify_runtime
+from php_binary import JIT_PROFILE, UPX_VERSION, current_linux_profile, verify_micro, verify_runtime
 
 version = os.environ["EXPECTED_PHP_VERSION"]
 branch = ".".join(version.split(".")[:2])
@@ -21,7 +21,14 @@ micro = Path("buildroot/bin/micro.sfx").resolve()
 actual = verify_runtime(cli, version)
 output = Path("dist")
 output.mkdir(exist_ok=True)
-info = dict(php_version=version, extensions=actual["extensions"], packing="none", binary_bytes=cli.stat().st_size)
+jit_report = json.loads(Path("validation/jit-unpacked.json").read_text())
+for mode in ("tracing", "function"):
+    check = jit_report[mode]
+    assert check["php"] == version and check["stdext"] is False
+    assert check["after"]["enabled"] and check["after"]["on"] and check["machine_code_bytes"] > 0
+info = dict(php_version=version, extensions=actual["extensions"], packing="none", binary_bytes=cli.stat().st_size,
+            sha256=hashlib.sha256(cli.read_bytes()).hexdigest(), jit_profile=JIT_PROFILE,
+            jit_compatible=True, swoole_stdext=False)
 if target_os == "linux":
     report = json.loads(Path("validation/upx-pack.json").read_text())
     assert current_linux_profile(report, dict(arch=arch, suffix=suffix))

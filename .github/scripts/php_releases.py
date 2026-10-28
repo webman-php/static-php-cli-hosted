@@ -10,7 +10,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from php_binary import UPX_VERSION, current_linux_profile
+from php_binary import UPX_VERSION, current_jit_profile, current_linux_profile
 
 BRANCHES = ("8.2", "8.3", "8.4", "8.5")
 MANIFEST = Path(__file__).resolve().parents[1] / "php-releases.json"
@@ -120,6 +120,8 @@ def decide_updates(current, latest, published):
                 pending.append(f"{name}: replace the obsolete intl/ICU build")
             elif target["os"] == "linux" and not current_linux_profile(metadata, target):
                 pending.append(f"{name}: publish the UPX {UPX_VERSION} profile")
+            elif not current_jit_profile(metadata):
+                pending.append(f"{name}: publish the compatible JIT profile")
     return pending
 
 
