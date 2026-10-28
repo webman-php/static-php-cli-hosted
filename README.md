@@ -68,6 +68,16 @@ UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以�
 
 UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。本次通过原生 gdb/strace 定位到 PHP 8.4.27 ARM64 glibc 的这个布局；该 CLI 使用 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch`，仍包含同一 PHP 安全修复且不含 intl/ICU。其它 Linux CLI 与全部四个 x86_64 打包运行时已通过 UPX 原生运行检查。后续安全版本会重新检查布局，允许加壳时自动恢复 UPX。每周检查识别这个兼容策略，避免对已正确发布的包反复编译。
 
+### JIT 构建兼容性（2026-10-28）
+
+正式构建显式使用 `--disable-swoole-stdext`。`stdext` 是 Swoole 的实验性功能，注册的 opcode handlers 会导致 PHP 在启动时禁用 JIT；关闭它不移除 Swoole 核心功能。PHP 8.2/8.3 的静态对照测试证明不需要额外修改协程 `exit()` 钩子。
+
+PHP 8.5 在本次 Zig 0.17 构建中会自动选择 TAILCALL VM；关闭 stdext 后，完整静态包仍可在 JIT 与协程测试中崩溃或执行错乱。PHP 上游记录了 [TAILCALL VM 的 opcode handler 执行帧问题](https://github.com/php/php-src/issues/24081)。构建时通过 `SPC_EXTRA_PHP_VARS=php_cv_preserve_none=no` 选择传统 VM，保留 `--enable-opcache-jit`，避免更改 PHP 核心或 Swoole 的退出钩子。
+
+构建流程检查 CLI 的 tracing/function JIT 是否实际生成机器码，并对比关闭 JIT 时的整数、浮点结果；还检查协程 channel、异常、跨 yield 的错误抑制、TCP、协程 `exit()` 和普通 CLI 退出状态。Linux 加壳后重跑 JIT 检查，PHP 8.5 还必须通过原始崩溃复现脚本。micro 保持原有 OPcache 默认关闭的配置，单独验证协程和实际 webman 打包 HTTP 服务；不能把 CLI 的 JIT 结果当成 micro 开启 OPcache/JIT 的兼容承诺。
+
+定向隔离测试使用完整扩展列表、Linux x86_64 musl 和真正的 Windows/WSL2。关闭 stdext 需要重新编译 CLI 和 micro，不能只修改 INI 或重新 UPX。正式发布仍须等待选定平台全部构建和运行验证通过，再替换下载站包并恢复网站安装脚本的默认 JIT 配置。
+
 ### 每周自动更新
 
 [Check PHP releases weekly](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/check-php-updates.yml) 在每周一北京时间 04:23（UTC 周日 20:23）检查，也可手动 Run workflow。

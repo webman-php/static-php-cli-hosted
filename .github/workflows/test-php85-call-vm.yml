@@ -1,8 +1,6 @@
 name: Test PHP 8.5 CALL VM with JIT
 
 on:
-  push:
-    paths: [.github/workflows/test-php85-call-vm.yml]
   workflow_dispatch:
 
 permissions:

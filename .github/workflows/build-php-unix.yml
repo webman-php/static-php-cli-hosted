@@ -47,6 +47,8 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SPC_TARGET: ${{ matrix.target.triple }}
+      # Keep JIT, using the traditional VM until PHP 8.5 TAILCALL hooks are compatible.
+      SPC_EXTRA_PHP_VARS: ${{ matrix.php.branch == '8.5' && 'php_cv_preserve_none=no' || '' }}
     runs-on: ${{ matrix.target.runner }}
     timeout-minutes: 240
     strategy:
@@ -67,6 +69,9 @@ jobs:
         with:
           path: .release-tools
           persist-credentials: false
+
+      - name: Disable experimental Swoole stdext for JIT compatibility
+        run: python3 .release-tools/.github/jit/apply_spc_profile.py --profile stdext-off
 
       - name: Setup build runtime
         uses: shivammathur/setup-php@v2
@@ -109,6 +114,13 @@ jobs:
       - name: Build CLI and micro
         run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
 
+      - name: Verify actual JIT code generation and coroutine behavior
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-unpacked.json
+
+      - name: Verify the PHP 8.5 VM regression reproducer
+        if: matrix.php.branch == '8.5'
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --fixture .release-tools/.github/jit/repro-php85-jit.php --jit-modes tracing --expect-jit yes --output validation/jit-original-repro.json
+
       - name: Verify unpacked binaries contain no intl, ICU or oversized payload
         env:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
@@ -122,6 +134,14 @@ jobs:
           TARGET_ARCH: ${{ matrix.target.arch }}
           TARGET_SUFFIX: ${{ matrix.target.suffix }}
         run: python3 .release-tools/.github/scripts/pack-php-upx.py
+
+      - name: Verify Linux JIT after UPX packing
+        if: matrix.target.os == 'linux'
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-packed.json
+
+      - name: Verify published micro coroutine behavior
+        if: matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
+        run: python3 .release-tools/.github/jit/run_micro_checks.py --micro buildroot/bin/micro.sfx --output validation/micro-defaults.json
 
       - name: Verify and package
         env:

@@ -1,9 +1,12 @@
 name: Diagnose static PHP 8.5 JIT
 
 on:
-  push:
-    paths: [.github/workflows/debug-static-jit.yml, .github/jit/debug_static.py]
   workflow_dispatch:
+    inputs:
+      source-run-id:
+        description: Run containing the PHP 8.5 static candidate artifact
+        type: string
+        required: true
 
 permissions:
   actions: read
@@ -17,7 +20,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 40697966412
+          run-id: ${{ inputs.source-run-id }}
           name: jit-candidate-8.5-stdext-off
           path: candidate
       - name: Ensure debugger is available
