@@ -1,0 +1,39 @@
+name: Test public static PHP JIT on WSL2
+
+on:
+  workflow_run:
+    workflows: [Build Self-Hosted PHP Binary (Unix)]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wsl:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+      - uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: '2'
+          additional-packages: python3 ca-certificates
+      - name: Test the actual public CLI and micro downloads
+        shell: wsl-bash {0}
+        run: |
+          set -euo pipefail
+          uname -a
+          grep -qi microsoft /proc/version
+          grep -qi wsl2 /proc/sys/kernel/osrelease
+          python3 .github/jit/run_published.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-php-jit-WSL2
+          path: validation/public-jit/
+          retention-days: 30
