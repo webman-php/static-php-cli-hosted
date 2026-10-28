@@ -16,47 +16,85 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    name: PHP ${{ matrix.php.branch }} / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  prepare:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
+    name: Verify and pack PHP ${{ matrix.php }} on Linux
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025]
-        php:
-          - {branch: '8.2', profile: legacy-exit-hook}
-          - {branch: '8.3', profile: legacy-exit-hook}
-          - {branch: '8.4', profile: stdext-off}
-          - {branch: '8.5', profile: stdext-off}
+        php: ['8.2', '8.3', '8.4', '8.5']
     steps:
-      - if: runner.os == 'Windows'
-        shell: pwsh
-        run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.source-run-id || github.event.workflow_run.id }}
-          name: jit-candidate-${{ matrix.php.branch }}-${{ matrix.php.profile }}
+          name: jit-candidate-${{ matrix.php }}-stdext-off
+          path: candidate
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: curl,openssl,mbstring
+      - name: Verify JIT with stdext disabled and original coroutine hooks
+        shell: bash
+        run: |
+          chmod +x candidate/buildroot/bin/php
+          python3 .github/jit/run_checks.py --php "$PWD/candidate/buildroot/bin/php" --expect-jit yes --output candidate/validation/jit-input.json
+      - name: Pack raw control artifacts with the production UPX profile
+        working-directory: candidate
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php }}
+          TARGET_ARCH: x86_64
+          TARGET_SUFFIX: ''
+        shell: bash
+        run: |
+          export EXPECTED_PHP_VERSION="$(buildroot/bin/php -n -r 'echo PHP_VERSION;')"
+          if [[ ! -f validation/upx-pack.json ]]; then
+            python3 ../.github/scripts/verify-lean-build.py
+            python3 ../.github/scripts/pack-php-upx.py
+          fi
+      - name: Verify UPX CLI JIT and micro production defaults
+        shell: bash
+        run: |
+          python3 .github/jit/run_checks.py --php "$PWD/candidate/buildroot/bin/php" --expect-jit yes --output candidate/validation/jit-final.json
+          python3 .github/jit/run_micro_checks.py --micro candidate/buildroot/bin/micro.sfx --output candidate/validation/micro-defaults.json
+      - name: Verify real packaged webman HTTP server
+        working-directory: candidate
+        shell: bash
+        run: |
+          export EXPECTED_PHP_VERSION="$(buildroot/bin/php -n -r 'echo PHP_VERSION;')"
+          python3 ../.github/scripts/smoke-webman-bin.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jit-ready-${{ matrix.php }}
+          path: candidate/
+          retention-days: 7
+
+  wsl:
+    name: Verify PHP ${{ matrix.php }} on real WSL2
+    needs: prepare
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+    steps:
+      - shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: jit-ready-${{ matrix.php }}
           path: candidate
       - name: Setup real WSL2
-        if: runner.os == 'Windows'
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
         with:
           distribution: Ubuntu-24.04
           wsl-version: '2'
           additional-packages: python3
-      - name: Verify CLI JIT and micro production defaults on Linux
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          uname -a
-          chmod +x candidate/buildroot/bin/php
-          python3 .github/jit/run_checks.py --php "$PWD/candidate/buildroot/bin/php" --expect-jit yes --output results/cli.json
-          python3 .github/jit/run_micro_checks.py --micro candidate/buildroot/bin/micro.sfx --output results/micro.json
       - name: Verify CLI JIT and micro production defaults inside WSL2
-        if: runner.os == 'Windows'
         shell: wsl-bash {0}
         run: |
           set -euo pipefail
@@ -69,6 +107,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: jit-runtime-${{ matrix.php.branch }}-${{ matrix.os }}
+          name: jit-runtime-${{ matrix.php }}-WSL2
           path: results/
           retention-days: 7
