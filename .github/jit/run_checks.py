@@ -25,7 +25,7 @@ def main():
                 "-d", "opcache.jit_buffer_size=64M", "-d", "opcache.jit_hot_func=2",
                 "-d", "opcache.jit_hot_loop=2"]
     reports = {}
-    for mode in ("disable", "tracing"):
+    for mode in ("disable", "tracing", "function"):
         result = subprocess.run(command + ["-d", f"opcache.jit={mode}", str(Path(__file__).with_name("probe.php"))], capture_output=True, text=True, timeout=45)
         print(f"--- JIT {mode}, exit {result.returncode} ---\n{result.stdout}{result.stderr}", flush=True)
         if result.returncode:
@@ -34,7 +34,7 @@ def main():
         if len(lines) != 1:
             raise RuntimeError("Missing runtime report")
         report = json.loads(lines[0])
-        expect = mode == "tracing" and args.expect_jit == "yes"
+        expect = mode != "disable" and args.expect_jit == "yes"
         if bool(report["after"]["on"]) != expect:
             raise RuntimeError(f"Unexpected JIT state: {report}")
         if expect and report["machine_code_bytes"] <= 0:
@@ -42,8 +42,9 @@ def main():
         if expect and ("Warning" in result.stdout or result.stderr):
             raise RuntimeError("Unexpected warning with JIT enabled")
         reports[mode] = report
-    if reports["disable"]["integer_result"] != reports["tracing"]["integer_result"] or abs(reports["disable"]["float_result"] - reports["tracing"]["float_result"]) > 1e-7:
-        raise RuntimeError("JIT numeric results differ")
+    for mode in ("tracing", "function"):
+        if reports["disable"]["integer_result"] != reports[mode]["integer_result"] or abs(reports["disable"]["float_result"] - reports[mode]["float_result"]) > 1e-7:
+            raise RuntimeError(f"JIT {mode} numeric results differ")
     plain = subprocess.run(command + ["-d", "opcache.jit=tracing", "-r", "exit(23);"], capture_output=True, text=True, timeout=10)
     if plain.returncode != 23:
         raise RuntimeError(f"Plain CLI exit status changed: {plain.returncode}")

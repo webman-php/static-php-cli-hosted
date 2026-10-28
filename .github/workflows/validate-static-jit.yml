@@ -1,0 +1,74 @@
+name: Validate static JIT on Linux and WSL2
+
+on:
+  workflow_run:
+    workflows: [Test static PHP JIT candidates]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      source-run-id:
+        description: Completed static candidate build run ID
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    name: PHP ${{ matrix.php.branch }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        php:
+          - {branch: '8.2', profile: legacy-exit-hook}
+          - {branch: '8.3', profile: legacy-exit-hook}
+          - {branch: '8.4', profile: stdext-off}
+          - {branch: '8.5', profile: stdext-off}
+    steps:
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.source-run-id || github.event.workflow_run.id }}
+          name: jit-candidate-${{ matrix.php.branch }}-${{ matrix.php.profile }}
+          path: candidate
+      - name: Setup real WSL2
+        if: runner.os == 'Windows'
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: '2'
+          additional-packages: python3
+      - name: Verify JIT CLI and micro on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          uname -a
+          chmod +x candidate/buildroot/bin/php
+          python3 .github/jit/run_checks.py --php "$PWD/candidate/buildroot/bin/php" --expect-jit yes --output results/cli.json
+          python3 .github/jit/run_micro_checks.py --micro candidate/buildroot/bin/micro.sfx --output results/micro.json
+      - name: Verify JIT CLI and micro inside WSL2
+        if: runner.os == 'Windows'
+        shell: wsl-bash {0}
+        run: |
+          set -euo pipefail
+          uname -a
+          grep -qi microsoft /proc/version
+          grep -qi wsl2 /proc/sys/kernel/osrelease
+          chmod +x candidate/buildroot/bin/php
+          python3 .github/jit/run_checks.py --php "$PWD/candidate/buildroot/bin/php" --expect-jit yes --output results/cli.json
+          python3 .github/jit/run_micro_checks.py --micro candidate/buildroot/bin/micro.sfx --output results/micro.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jit-runtime-${{ matrix.php.branch }}-${{ matrix.os }}
+          path: results/
+          retention-days: 7
