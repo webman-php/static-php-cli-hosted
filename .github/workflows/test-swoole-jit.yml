@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {php: '8.2', patch: stdext-off, jit: 'no'}
+          - {php: '8.2', patch: stdext-off, jit: 'yes'}
           - {php: '8.2', patch: legacy-exit-hook, jit: 'yes'}
-          - {php: '8.3', patch: stdext-off, jit: 'no'}
+          - {php: '8.3', patch: stdext-off, jit: 'yes'}
           - {php: '8.3', patch: legacy-exit-hook, jit: 'yes'}
           - {php: '8.4', patch: stdext-off, jit: 'yes'}
           - {php: '8.5', patch: stdext-off, jit: 'yes'}

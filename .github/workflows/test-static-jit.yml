@@ -1,0 +1,120 @@
+name: Test static PHP JIT candidates
+
+on:
+  push:
+    paths:
+      - .github/workflows/test-static-jit.yml
+      - .github/jit/spc-swoole-jit.patch
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  # Includes upstream fixes for the IMAP stubs in PHP 8.4.27/8.5.12 and current Swoole.
+  SPC_REF: 84ff669ee513609bc75aa43a87e2f3a349b37109
+  EXTENSIONS: apcu,bcmath,bz2,calendar,ctype,curl,dba,dom,event,exif,fileinfo,filter,ftp,gd,gmp,iconv,imagick,imap,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pgsql,phar,posix,protobuf,readline,redis,session,shmop,simplexml,soap,sockets,sodium,sqlite3,swoole,swoole-hook-mysql,swoole-hook-pgsql,swoole-hook-sqlite,sysvmsg,sysvsem,sysvshm,tokenizer,xml,xmlreader,xmlwriter,xsl,zip,zlib,amqp,gettext,igbinary,mongodb,msgpack,xlswriter
+
+jobs:
+  build:
+    name: PHP ${{ matrix.php.version }} / ${{ matrix.profile }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SPC_TARGET: x86_64-linux-musl
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {php: {branch: '8.2', version: '8.2.35', sha256: '9db4204f0a2d1911277ae832185e07bb4c3b3559772753a70d2968ca346d6910'}, profile: stdext-off, jit: 'no'}
+          - {php: {branch: '8.2', version: '8.2.35', sha256: '9db4204f0a2d1911277ae832185e07bb4c3b3559772753a70d2968ca346d6910'}, profile: legacy-exit-hook, jit: 'yes'}
+          - {php: {branch: '8.3', version: '8.3.36', sha256: 'c93f3441f87f6ab156bef4432db215d7e61ca2c0183bb3a2aa28d9886ab59f53'}, profile: stdext-off, jit: 'no'}
+          - {php: {branch: '8.3', version: '8.3.36', sha256: 'c93f3441f87f6ab156bef4432db215d7e61ca2c0183bb3a2aa28d9886ab59f53'}, profile: legacy-exit-hook, jit: 'yes'}
+          - {php: {branch: '8.4', version: '8.4.27', sha256: '5bafed9994c1a49796b25b5f61c22c9183bfe046b6acc7b363842d03c77f972f'}, profile: stdext-off, jit: 'yes'}
+          - {php: {branch: '8.5', version: '8.5.12', sha256: '81a0f450349e84b08eb43faa85f8a4c835684f3cc1c50471775d1317a046c525'}, profile: stdext-off, jit: 'yes'}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: crazywhalecc/static-php-cli
+          ref: ${{ env.SPC_REF }}
+      - uses: actions/checkout@v4
+        with:
+          path: .release-tools
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: curl,openssl,mbstring
+          ini-values: memory_limit=-1
+      - name: Apply maintained candidate compiler profile
+        run: python3 .release-tools/.github/jit/apply_spc_profile.py --profile '${{ matrix.profile }}'
+      - name: Validate compiler changes
+        run: |
+          composer install --no-interaction --no-progress --prefer-dist
+          bin/spc dev:lint-config
+          composer cs-fix -- --dry-run --diff
+          composer test
+          composer analyse
+          bin/spc doctor --auto-fix
+      - uses: actions/cache@v4
+        with:
+          path: downloads/
+          key: security-sources-${{ env.SPC_REF }}-${{ matrix.php.version }}-linux-x86_64
+      - name: Download pinned sources
+        run: |
+          bin/spc download \
+            --with-php=${{ matrix.php.version }} \
+            --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
+            --custom-url=ext-swoole:https://github.com/swoole/swoole-src/archive/refs/tags/v6.2.3.tar.gz \
+            --custom-url=libevent:https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz \
+            --custom-url=ext-event:https://bitbucket.org/osmanov/pecl-event/get/3.1.6.tar.gz \
+            --for-extensions="$EXTENSIONS" --retry=5 --parallel=4
+          bin/spc download --for-packages=llvm-compiler-rt --retry=5
+          echo '${{ matrix.php.sha256 }}  downloads/php-${{ matrix.php.version }}.tar.gz' | sha256sum -c -
+          echo 'f7e9383b8c0baa81b687e5b5eecc01beefaf1b19b64151d95ed61647fe7a315c  downloads/libevent-2.1.13-stable.tar.gz' | sha256sum -c -
+          echo '4ac43b6ba60d762f530e941fb406e66cc17a089401c7f9a58b048a780edba44b  downloads/3.1.6.tar.gz' | sha256sum -c -
+          python3 - <<'PYCODE'
+          import hashlib
+          from pathlib import Path
+          expected = 'dde8d2a4a6b5c5cd418aedd8561760baad59767a2f8a963b2c0e9eb9c86f4c8d'
+          matches = [p for p in Path('downloads').iterdir() if p.is_file() and '6.2.3' in p.name and hashlib.sha256(p.read_bytes()).hexdigest() == expected]
+          assert len(matches) == 1, 'Pinned Swoole source checksum mismatch'
+          print('Verified Swoole source:', matches[0])
+          PYCODE
+      - name: Build full production extension profile with CLI and micro
+        run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
+      - name: Test unpacked JIT and coroutine behavior
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit '${{ matrix.jit }}' --output validation/jit-unpacked.json
+      - name: Check size and pack with production UPX profile
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+          TARGET_ARCH: x86_64
+          TARGET_SUFFIX: ''
+        run: |
+          python3 .release-tools/.github/scripts/verify-lean-build.py
+          python3 .release-tools/.github/scripts/pack-php-upx.py
+      - name: Test packed JIT and coroutine behavior
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit '${{ matrix.jit }}' --output validation/jit-upx.json
+      - name: Test real packaged webman HTTP server
+        env:
+          EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
+        run: python3 .release-tools/.github/scripts/smoke-webman-bin.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jit-candidate-${{ matrix.php.branch }}-${{ matrix.profile }}
+          path: |
+            validation/
+            buildroot/bin/php
+            buildroot/bin/micro.sfx
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: jit-build-logs-${{ matrix.php.branch }}-${{ matrix.profile }}
+          path: log/
+          retention-days: 3
