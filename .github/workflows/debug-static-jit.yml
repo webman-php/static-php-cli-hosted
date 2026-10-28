@@ -1,0 +1,32 @@
+name: Diagnose static PHP 8.5 JIT
+
+on:
+  push:
+    paths: [.github/workflows/debug-static-jit.yml, .github/jit/debug_static.py]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 40697966412
+          name: jit-candidate-8.5-stdext-off
+          path: candidate
+      - name: Ensure debugger is available
+        run: command -v gdb || (sudo apt-get update -qq && sudo apt-get install -y gdb)
+      - name: Diagnose original and current probes
+        run: python3 .github/jit/debug_static.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jit-85-diagnostics
+          path: diagnostics/
+          retention-days: 7
