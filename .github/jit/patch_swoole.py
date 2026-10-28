@@ -17,7 +17,6 @@ def main():
     parser.add_argument("--legacy-exit-hook", action="store_true")
     args = parser.parse_args()
     # Same PHP 8.5 compatibility guard used by the pinned static-php-cli builder.
-    replace_once(args.source / "include/swoole_api.h", "PHP_VERSION_ID > 80500", "PHP_VERSION_ID >= 80600") if (args.source / "include/swoole_api.h").exists() and "PHP_VERSION_ID > 80500" in (args.source / "include/swoole_api.h").read_text() else None
     private = args.source / "ext-src/php_swoole_private.h"
     if private.exists() and "PHP_VERSION_ID > 80500" in private.read_text():
         replace_once(private, "PHP_VERSION_ID > 80500", "PHP_VERSION_ID >= 80600")

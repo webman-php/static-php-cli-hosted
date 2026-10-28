@@ -49,7 +49,7 @@ Swoole\Coroutine\run(function () use (&$events): void {
     Swoole\Coroutine::create(function () use ($channel): void {
         for ($i = 0; $i < 100; $i++) {
             $channel->push(numeric($i % 10));
-            Swoole\Coroutine::sleep(0.0001);
+            Swoole\Coroutine::sleep(0.001);
         }
     });
     $total = 0;
@@ -75,7 +75,7 @@ Swoole\Coroutine\run(function () use (&$events): void {
     Swoole\Coroutine::create(function () use ($server): void {
         $peer = $server->accept(3);
         check($peer !== false, 'TCP accept failed');
-        check($peer->recv(3) === 'ping', 'TCP receive failed');
+        check($peer->recvAll(4, 3) === 'ping', 'TCP receive failed');
         check($peer->sendAll('pong') === 4, 'TCP send failed');
         $peer->close();
         $server->close();
@@ -83,7 +83,7 @@ Swoole\Coroutine\run(function () use (&$events): void {
     $client = new Swoole\Coroutine\Socket(AF_INET, SOCK_STREAM, 0);
     check($client->connect('127.0.0.1', $port, 3), 'TCP connect failed');
     $client->sendAll('ping');
-    check($client->recv(3) === 'pong', 'TCP round trip failed');
+    check($client->recvAll(4, 3) === 'pong', 'TCP round trip failed');
     $client->close();
     $events[] = 'tcp';
     try {
