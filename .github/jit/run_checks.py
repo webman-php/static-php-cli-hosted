@@ -12,6 +12,8 @@ def main():
     p.add_argument("--swoole")
     p.add_argument("--expect-jit", choices=["yes", "no"], required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--fixture", type=Path, default=Path(__file__).with_name("probe.php"))
+    p.add_argument("--jit-modes", choices=["tracing", "function"], nargs="+", default=["tracing", "function"])
     args = p.parse_args()
     command = [args.php, "-n"]
     loaded = subprocess.run(command + ["-r", "exit(extension_loaded('Zend OPcache') ? 0 : 1);"], capture_output=True)
@@ -25,8 +27,8 @@ def main():
                 "-d", "opcache.jit_buffer_size=64M", "-d", "opcache.jit_hot_func=2",
                 "-d", "opcache.jit_hot_loop=2"]
     reports = {}
-    for mode in ("disable", "tracing", "function"):
-        result = subprocess.run(command + ["-d", f"opcache.jit={mode}", str(Path(__file__).with_name("probe.php"))], capture_output=True, text=True, timeout=45)
+    for mode in ("disable", *args.jit_modes):
+        result = subprocess.run(command + ["-d", f"opcache.jit={mode}", str(args.fixture.resolve())], capture_output=True, text=True, timeout=45)
         print(f"--- JIT {mode}, exit {result.returncode} ---\n{result.stdout}{result.stderr}", flush=True)
         if result.returncode:
             raise RuntimeError(f"JIT {mode} process failed ({result.returncode})")
@@ -42,7 +44,7 @@ def main():
         if expect and ("Warning" in result.stdout or result.stderr):
             raise RuntimeError("Unexpected warning with JIT enabled")
         reports[mode] = report
-    for mode in ("tracing", "function"):
+    for mode in args.jit_modes:
         if reports["disable"]["integer_result"] != reports[mode]["integer_result"] or abs(reports["disable"]["float_result"] - reports[mode]["float_result"]) > 1e-7:
             raise RuntimeError(f"JIT {mode} numeric results differ")
     plain = subprocess.run(command + ["-d", "opcache.jit=tracing", "-r", "exit(23);"], capture_output=True, text=True, timeout=10)
