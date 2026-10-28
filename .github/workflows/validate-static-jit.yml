@@ -51,6 +51,7 @@ jobs:
         shell: bash
         run: |
           export EXPECTED_PHP_VERSION="$(buildroot/bin/php -n -r 'echo PHP_VERSION;')"
+          export EXTENSIONS="$(python3 -c 'import re; from pathlib import Path; print(re.search(r"^  EXTENSIONS: (.+)$", Path("../.github/workflows/build-php-unix.yml").read_text(), re.M)[1])')"
           if [[ ! -f validation/upx-pack.json ]]; then
             python3 ../.github/scripts/verify-lean-build.py
             python3 ../.github/scripts/pack-php-upx.py
@@ -75,6 +76,7 @@ jobs:
   wsl:
     name: Verify PHP ${{ matrix.php }} on real WSL2
     needs: prepare
+    if: always()
     runs-on: windows-2025
     strategy:
       fail-fast: false
