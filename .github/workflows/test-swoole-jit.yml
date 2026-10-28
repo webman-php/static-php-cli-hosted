@@ -1,0 +1,58 @@
+name: Test Swoole JIT compatibility
+
+on:
+  push:
+    paths:
+      - .github/jit/**
+      - .github/workflows/test-swoole-jit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: PHP ${{ matrix.php }} / ${{ matrix.patch }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {php: '8.2', patch: stdext-off, jit: 'no'}
+          - {php: '8.2', patch: legacy-exit-hook, jit: 'yes'}
+          - {php: '8.3', patch: stdext-off, jit: 'no'}
+          - {php: '8.3', patch: legacy-exit-hook, jit: 'yes'}
+          - {php: '8.4', patch: stdext-off, jit: 'yes'}
+          - {php: '8.5', patch: stdext-off, jit: 'yes'}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: opcache, sockets, pcntl
+      - name: Download pinned Swoole source
+        run: |
+          curl --fail --location --retry 3 https://codeload.github.com/swoole/swoole-src/tar.gz/refs/tags/v6.2.3 -o swoole.tar.gz
+          echo 'dde8d2a4a6b5c5cd418aedd8561760baad59767a2f8a963b2c0e9eb9c86f4c8d  swoole.tar.gz' | sha256sum -c -
+          tar -xzf swoole.tar.gz
+      - name: Apply isolated compatibility experiment
+        env:
+          PATCH: ${{ matrix.patch }}
+        run: |
+          args=()
+          if [[ "$PATCH" == legacy-exit-hook ]]; then args+=(--legacy-exit-hook); fi
+          python3 .github/jit/patch_swoole.py swoole-src-6.2.3 "${args[@]}"
+      - name: Compile Swoole without experimental stdext
+        working-directory: swoole-src-6.2.3
+        run: |
+          phpize
+          ./configure --enable-swoole --disable-swoole-stdext --disable-swoole-thread --disable-thread-context
+          make -j"$(nproc)"
+      - name: Test actual JIT code generation and coroutine behavior
+        run: python3 .github/jit/run_checks.py --swoole swoole-src-6.2.3/modules/swoole.so --expect-jit '${{ matrix.jit }}' --output 'validation/php-${{ matrix.php }}-${{ matrix.patch }}.json'
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: jit-probe-${{ matrix.php }}-${{ matrix.patch }}
+          path: validation/
