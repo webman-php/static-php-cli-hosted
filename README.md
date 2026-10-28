@@ -78,6 +78,8 @@ PHP 8.5 在本次 Zig 0.17 构建中会自动选择 TAILCALL VM；关闭 stdext 
 
 定向隔离测试使用完整扩展列表、Linux x86_64 musl 和真正的 Windows/WSL2。关闭 stdext 需要重新编译 CLI 和 micro，不能只修改 INI 或重新 UPX。正式发布仍须等待选定平台全部构建和运行验证通过，再替换下载站包并恢复网站安装脚本的默认 JIT 配置。
 
+验证记录：[PHP 8.2.35 / 8.3.36 / 8.4.27 的 Linux、UPX、webman 和 WSL2 测试](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40705761788)，[PHP 8.5.12 传统 VM、原始崩溃样例和 WSL2 测试](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40705761826)，均已通过。本轮验证未发布到下载站，ARM、macOS、glibc 组合仍须经过正式全量构建验证。
+
 ### 每周自动更新
 
 [Check PHP releases weekly](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/check-php-updates.yml) 在每周一北京时间 04:23（UTC 周日 20:23）检查，也可手动 Run workflow。
