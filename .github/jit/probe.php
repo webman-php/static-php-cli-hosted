@@ -6,25 +6,6 @@ function check(bool $ok, string $message): void {
         throw new RuntimeException($message);
     }
 }
-function numeric(int $seed): int {
-    $sum = 0;
-    for ($i = 0; $i < 300; $i++) {
-        $sum += (($i * 31 + $seed) % 997);
-    }
-    return $sum;
-}
-function floating(float $seed): float {
-    for ($i = 0; $i < 150; $i++) {
-        $seed = $seed * 0.995 + 0.125;
-    }
-    return $seed;
-}
-function maybeExit(bool $exit): int {
-    if ($exit) {
-        exit(37);
-    }
-    return numeric(3);
-}
 function silencedYield(): int {
     $level = error_reporting();
     Swoole\Coroutine::sleep(0.001);
@@ -35,6 +16,8 @@ function silencedYield(): int {
 check(extension_loaded('swoole'), 'Swoole missing');
 check(!function_exists('swoole_call_array_method'), 'stdext still enabled');
 $before = opcache_get_status(false)['jit'];
+// Function JIT compiles a file on load. Load it after the baseline measurement.
+require __DIR__ . '/workload.php';
 $sum = 0;
 $float = 0.0;
 for ($i = 0; $i < 1200; $i++) {

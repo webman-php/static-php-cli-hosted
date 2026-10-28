@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory(prefix='micro-jit-check-') as tmp:
     executable = Path(tmp) / 'probe'
     original = args.micro.read_bytes()
     body = Path(__file__).with_name('probe.php').read_bytes()
+    (Path(tmp) / 'workload.php').write_bytes(Path(__file__).with_name('workload.php').read_bytes())
     for mode in ('disable', 'tracing', 'function'):
         ini = ('opcache.enable=1\nopcache.enable_cli=1\nopcache.file_update_protection=0\n'
                'opcache.jit_buffer_size=64M\nopcache.jit_hot_func=2\nopcache.jit_hot_loop=2\n'
