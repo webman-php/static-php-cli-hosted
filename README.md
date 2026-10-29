@@ -66,7 +66,7 @@ UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以�
 
 如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布要求原构建的全部 24 个 PHP 编译任务成功，并等待原发布进程结束；原上传失败或取消时也能复用已验证的产物。随后验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
 
-UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。本次通过原生 gdb/strace 定位到 PHP 8.4.27 ARM64 glibc 的这个布局；该 CLI 使用 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch`，仍包含同一 PHP 安全修复且不含 intl/ICU。其它 Linux CLI 与全部四个 x86_64 打包运行时已通过 UPX 原生运行检查。后续安全版本会重新检查布局，允许加壳时自动恢复 UPX。每周检查识别这个兼容策略，避免对已正确发布的包反复编译。
+UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。此前通过原生 gdb/strace 在 PHP 8.4.27 ARM64 glibc 构建中定位到这个布局，兼容分支允许记录 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch` 并保留经过原生验证的文件。2026-10-29 的 JIT 修复构建改变了二进制布局，本轮全部 16 个 Linux CLI 和四个 x86_64 打包运行时均已通过 UPX 原生检查并发布。后续版本仍重新检查布局，必要时使用上述兼容分支；每周检查识别该策略，避免反复编译。
 
 ### JIT 构建兼容性（2026-10-28）
 
@@ -76,15 +76,17 @@ PHP 8.5 在本次 Zig 0.17 构建中会自动选择 TAILCALL VM；关闭 stdext 
 
 构建流程检查 CLI 的 tracing/function JIT 是否实际生成机器码，并对比关闭 JIT 时的整数、浮点结果；还检查协程 channel、异常、跨 yield 的错误抑制、TCP、协程 `exit()` 和普通 CLI 退出状态。Linux 加壳后重跑 JIT 检查，PHP 8.5 还必须通过原始崩溃复现脚本。micro 保持原有 OPcache 默认关闭的配置，单独验证协程和实际 webman 打包 HTTP 服务；不能把 CLI 的 JIT 结果当成 micro 开启 OPcache/JIT 的兼容承诺。
 
-定向隔离测试使用完整扩展列表、Linux x86_64 musl 和真正的 Windows/WSL2。关闭 stdext 需要重新编译 CLI 和 micro，不能只修改 INI 或重新 UPX。正式发布仍须等待选定平台全部构建和运行验证通过，再替换下载站包并恢复网站安装脚本的默认 JIT 配置。
+定向隔离测试使用完整扩展列表、Linux x86_64 musl 和真正的 Windows/WSL2。关闭 stdext 需要重新编译 CLI 和 micro，不能只修改 INI 或重新 UPX。正式发布要求选定平台全部构建和运行验证通过，再备份并替换下载站包。
 
-验证记录：[PHP 8.2.35 / 8.3.36 / 8.4.27 的 Linux、UPX、webman 和 WSL2 测试](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40705761788)，[PHP 8.5.12 传统 VM、原始崩溃样例和 WSL2 测试](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40705761826)，均已通过。本轮验证未发布到下载站，ARM、macOS、glibc 组合仍须经过正式全量构建验证。
+验证记录：[PHP 8.2.35 / 8.3.36 / 8.4.27 的 Linux、UPX、webman 和 WSL2 测试](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40705761788)，[PHP 8.5.12 传统 VM、原始崩溃样例和 WSL2 测试](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40705761826)，均已通过。2026-10-29 的[全量构建与发布](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40713366773)已覆盖全部 24 个 Linux musl/glibc、macOS、x86_64/aarch64 组合，并备份、替换下载站文件。外网全部 24 个压缩包和 8 个 macOS 文件名别名均已实际下载并核对 SHA-256；CLI、micro 原文件及 ZIP 也通过发布后的公开校验。
+
+[实际公开下载包的 WSL2 回归](https://github.com/webman-php/static-php-cli-hosted/actions/runs/40797451704)已通过，覆盖四个 PHP 分支的 tracing/function JIT 机器码、协程、PHP 8.5 原始崩溃样例和 micro 原有默认配置。网站安装脚本已恢复 `opcache.jit=tracing`、`opcache.jit_buffer_size=64M`，其 Ubuntu 和真实 WSL2 测试也验证了四个分支按生成的 INI 启动无警告、缓存有效并实际生成 JIT 机器码。
 
 ### 每周自动更新
 
 [Check PHP releases weekly](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/check-php-updates.yml) 在每周一北京时间 04:23（UTC 周日 20:23）检查，也可手动 Run workflow。
 检查运行在 GitHub，不需要本地电脑开机。使用 PHP 官方 release JSON API，分别读取 8.2、8.3、8.4、8.5 的最新正式版及 tar.gz 的 SHA-256，不采用 RC/开发版，不自动增加新的 PHP 分支。
-与下载站全部 24 个 Linux/macOS 包的实际版本比较；没有新版且包齐全时，跳过构建和上传，不产生版本提交。
+与下载站全部 24 个 Linux/macOS 包的实际版本及构建配置比较；没有新版、包齐全且无 intl、UPX、JIT 修复标记均满足当前要求时，跳过构建和上传，不产生版本提交。旧包缺少当前修复标记时会补建一次；本轮发布后已确认检查结果为无需构建或上传。
 有新版时自动提交版本清单，并触发包含 musl、glibc 2.17、macOS 的完整 Unix 构建、验证和发布流程；上传前仍会备份旧下载文件。
 以上定时任务维护下载站的静态 PHP 包。Windows 保持手动构建；业务服务器的运行中 PHP 仍按需单独升级。
 如果上次编译或发布失败，即使清单已经提交了新版本，下次仍会根据下载站实际版本重试；已有构建或发布运行中时暂缓，避免重复任务。
