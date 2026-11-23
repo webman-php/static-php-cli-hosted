@@ -75,7 +75,7 @@ jobs:
           path: .release-tools
           persist-credentials: false
 
-      - name: Disable experimental Swoole stdext for JIT compatibility
+      - name: Apply Swoole JIT and PHP 8.6 static extension compatibility
         run: python3 .release-tools/.github/jit/apply_spc_profile.py --profile stdext-off
 
       - name: Setup build runtime
