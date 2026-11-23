@@ -106,3 +106,5 @@ PHP 8.5 在本次 Zig 0.17 构建中会自动选择 TAILCALL VM；关闭 stdext 
 
 编译器固定 libevent 2.1.13-stable（含 2026-07 安全修复）与 event 3.1.6，避免自动选择标记不准确的 libevent alpha 版。
 event 使用上游 Bitbucket 的 3.1.6 源码并验证 SHA-256；PECL 多版本目录压缩包会破坏 PHP 静态构建的扩展头文件生成。
+
+PHP 8.6 使用上游 event 3.2.0。APCu、Redis、igbinary、msgpack 和 xlswriter 保留原版本，通过 [Remi 的扩展源码补丁](https://github.com/remicollet/remirepo/issues/342)及 [xlswriter 上游修复](https://github.com/viest/php-ext-xlswriter/pull/591)适配 8.6。更新这些补丁会触发 PHP 8.6 的六平台验证和发布。

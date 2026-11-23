@@ -1,0 +1,28 @@
+diff --git a/kernel/common.c b/kernel/common.c
+index 6cc26df..51cd74b 100644
+--- a/kernel/common.c
++++ b/kernel/common.c
+@@ -94,12 +94,23 @@ void call_object_method(zval *object, const char *function_name, uint32_t param_
+ /* {{{ */
+ lxlsx_datetime timestamp_to_datetime(zend_long timestamp)
+ {
++#if PHP_VERSION_ID >= 80600
++    int yearLocal, monthLocal, dayLocal, hourLocal, minuteLocal, secondLocal;
++
++    php_idate('Y', timestamp, 0, &yearLocal);
++    php_idate('m', timestamp, 0, &monthLocal);
++    php_idate('d', timestamp, 0, &dayLocal);
++    php_idate('H', timestamp, 0, &hourLocal);
++    php_idate('i', timestamp, 0, &minuteLocal);
++    php_idate('s', timestamp, 0, &secondLocal);
++#else
+     int yearLocal   = php_idate('Y', timestamp, 0);
+     int monthLocal  = php_idate('m', timestamp, 0);
+     int dayLocal    = php_idate('d', timestamp, 0);
+     int hourLocal   = php_idate('H', timestamp, 0);
+     int minuteLocal = php_idate('i', timestamp, 0);
+     int secondLocal = php_idate('s', timestamp, 0);
++#endif
+ 
+     lxlsx_datetime datetime = {
+             yearLocal, monthLocal, dayLocal, hourLocal, minuteLocal, secondLocal

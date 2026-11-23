@@ -31,3 +31,17 @@ for before, after in patches.items():
         raise RuntimeError('Unexpected static-php-cli PHP 8.6 compatibility layout')
     text = text.replace(before, after, 1)
 path.write_text(text)
+
+path = Path('src/Package/Target/php.php')
+text = path.read_text()
+before = '            foreach (FileSystem::scanDirFiles($build_dir) ?: [] as $file) {'
+if text.count(before) != 1:
+    raise RuntimeError('Unexpected static-php-cli PHP 8.6 extension patch layout')
+path.write_text(text.replace(before, '''            $patch_dir = getenv('SPC_PHP86_PATCH_DIR');
+            if ($patch_dir !== false) {
+                $patch_path = $patch_dir . '/' . $ext->getExtensionName() . '.patch';
+                if (is_file($patch_path)) {
+                    shell()->cd($build_dir)->exec('patch --batch -p1 -i ' . escapeshellarg($patch_path));
+                }
+            }
+''' + before, 1))

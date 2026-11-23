@@ -1,6 +1,10 @@
 name: Build Self-Hosted PHP Binary (Unix)
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - .github/patches/php86/**
   workflow_dispatch:
     inputs:
       php-branch:
@@ -21,8 +25,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: static-php-unix-no-intl-${{ inputs.validation-only && 'validation' || inputs.php-branch || 'release' }}
-  cancel-in-progress: false
+  group: static-php-unix-no-intl-${{ github.event_name == 'push' && '8.6' || (inputs.validation-only && 'validation' || inputs.php-branch || 'release') }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
   # Includes upstream fixes for the IMAP stubs in PHP 8.4.27/8.5.12 and current Swoole.
@@ -41,9 +45,9 @@ jobs:
       - uses: actions/checkout@v4
       - id: targets
         env:
-          INCLUDE_GLIBC: ${{ inputs.include-glibc }}
+          INCLUDE_GLIBC: ${{ github.event_name == 'push' || inputs.include-glibc }}
           VALIDATION_ONLY: ${{ inputs.validation-only }}
-          PHP_BRANCH: ${{ inputs.php-branch }}
+          PHP_BRANCH: ${{ github.event_name == 'push' && '8.6' || inputs.php-branch }}
         run: python3 .github/scripts/php_releases.py plan
 
   build-release-artifacts:
@@ -102,13 +106,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          event_url=https://bitbucket.org/osmanov/pecl-event/get/3.1.6.tar.gz
+          event_sha=4ac43b6ba60d762f530e941fb406e66cc17a089401c7f9a58b048a780edba44b
+          if [ '${{ matrix.php.branch }}' = 8.6 ]; then
+            event_url=https://github.com/rosmanov/pecl-event/archive/refs/tags/3.2.0.tar.gz
+            event_sha=1b8bdd27aaa69bd59f4c06744bbc6497d32653c56acf1301b6753ec7938243a4
+          fi
           # SPC retries file transfers; also retry source discovery if an index is temporarily unavailable.
           for attempt in 1 2 3; do
             if bin/spc download \
               --with-php=${{ matrix.php.version }} \
               --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
               --custom-url=libevent:https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz \
-              --custom-url=ext-event:https://bitbucket.org/osmanov/pecl-event/get/3.1.6.tar.gz \
+              --custom-url=ext-event:"$event_url" \
               --for-extensions="$EXTENSIONS" --retry=5 --parallel=4; then
               break
             fi
@@ -120,13 +130,14 @@ jobs:
             bin/spc download --for-packages=llvm-compiler-rt --retry=5
           fi
           echo 'f7e9383b8c0baa81b687e5b5eecc01beefaf1b19b64151d95ed61647fe7a315c  downloads/libevent-2.1.13-stable.tar.gz' | shasum -a 256 -c -
-          echo '4ac43b6ba60d762f530e941fb406e66cc17a089401c7f9a58b048a780edba44b  downloads/3.1.6.tar.gz' | shasum -a 256 -c -
+          echo "$event_sha  downloads/${event_url##*/}" | shasum -a 256 -c -
           echo '${{ matrix.php.sha256 }}  downloads/php-${{ matrix.php.version }}.tar.gz' | shasum -a 256 -c -
 
       - name: Build CLI and micro
         env:
-          # Keep compiling other extensions after an error in validation builds.
-          MAKEFLAGS: ${{ inputs.validation-only && '--keep-going' || '' }}
+          # Collect all extension compiler errors when validating or building PHP 8.6.
+          MAKEFLAGS: ${{ (inputs.validation-only || matrix.php.branch == '8.6') && '--keep-going' || '' }}
+          SPC_PHP86_PATCH_DIR: ${{ github.workspace }}/.release-tools/.github/patches/php86
         run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
 
       - name: Verify actual JIT code generation and coroutine behavior
@@ -204,6 +215,6 @@ jobs:
     with:
       source-run-id: '${{ github.run_id }}'
       expected-packages: ${{ fromJSON(needs.plan.outputs.count) }}
-      php-branch: '${{ inputs.php-branch }}'
+      php-branch: ${{ github.event_name == 'push' && '8.6' || inputs.php-branch }}
     secrets:
       DEPLOY_SERVER_SECRET_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}

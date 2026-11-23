@@ -1,0 +1,2808 @@
+From 52a39fbc184b59610d036a99c78ce3bc6fe6c38b Mon Sep 17 00:00:00 2001
+From: Niels Dossche <7771979+ndossche@users.noreply.github.com>
+Date: Sat, 15 Nov 2025 12:32:47 +0100
+Subject: [PATCH 01/10] Replace legacy zval_is_true() alias with zend_is_true()
+
+(cherry picked from commit 8e1c2789a4e192907f20ce8ffbf4390b7ac4f649)
+---
+ cluster_library.c |  4 ++--
+ library.c         |  2 +-
+ redis_commands.c  | 46 +++++++++++++++++++++++-----------------------
+ 3 files changed, 26 insertions(+), 26 deletions(-)
+
+diff --git a/cluster_library.c b/cluster_library.c
+index 96def05..917843f 100644
+--- a/cluster_library.c
++++ b/cluster_library.c
+@@ -2867,9 +2867,9 @@ PHP_REDIS_API void cluster_mset_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster
+     // Set our return if it's the last call
+     if (mctx->last) {
+         if (CLUSTER_IS_ATOMIC(c)) {
+-            ZVAL_BOOL(return_value, zval_is_true(mctx->z_multi));
++            ZVAL_BOOL(return_value, zend_is_true(mctx->z_multi));
+         } else {
+-            add_next_index_bool(&c->multi_resp, zval_is_true(mctx->z_multi));
++            add_next_index_bool(&c->multi_resp, zend_is_true(mctx->z_multi));
+         }
+         efree(mctx->z_multi);
+     }
+diff --git a/library.c b/library.c
+index 7effbd2..d6af1b1 100644
+--- a/library.c
++++ b/library.c
+@@ -3047,7 +3047,7 @@ redis_sock_configure(RedisSock *redis_sock, HashTable *opts)
+                 redis_sock->persistent_id = zval_get_string(val);
+                 redis_sock->persistent = 1;
+             } else {
+-                redis_sock->persistent = zval_is_true(val);
++                redis_sock->persistent = zend_is_true(val);
+             }
+         } else if (zend_string_equals_literal_ci(zkey, "maxRetries")) {
+             if (Z_TYPE_P(val) != IS_LONG || Z_LVAL_P(val) < 0) {
+diff --git a/redis_commands.c b/redis_commands.c
+index 8fe055f..9b4d4bb 100644
+--- a/redis_commands.c
++++ b/redis_commands.c
+@@ -490,7 +490,7 @@ redis_failover_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+                 } else if (zend_string_equals_literal_ci(zkey, "port")) {
+                     port = zval_get_long(z_ele);
+                 } else if (zend_string_equals_literal_ci(zkey, "force")) {
+-                    force = zval_is_true(z_ele);
++                    force = zend_is_true(z_ele);
+                 }
+             }
+         } ZEND_HASH_FOREACH_END();
+@@ -636,7 +636,7 @@ void redis_get_zcmd_options(redisZcmdOptions *dst, zval *src, int flags) {
+ 
+         if (key) {
+             if ((flags & REDIS_ZCMD_HAS_WITHSCORES) && zend_string_equals_literal_ci(key, "WITHSCORES"))
+-                dst->withscores = zval_is_true(zv);
++                dst->withscores = zend_is_true(zv);
+             else if ((flags & REDIS_ZCMD_HAS_LIMIT) && zend_string_equals_literal_ci(key, "LIMIT") &&
+                      Z_TYPE_P(zv) == IS_ARRAY)
+             {
+@@ -1124,7 +1124,7 @@ redis_zrandmember_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+                 if (zend_string_equals_literal_ci(zkey, "count")) {
+                     count = zval_get_long(z_ele);
+                 } else if (zend_string_equals_literal_ci(zkey, "withscores")) {
+-                    withscores = zval_is_true(z_ele);
++                    withscores = zend_is_true(z_ele);
+                 }
+             }
+         } ZEND_HASH_FOREACH_END();
+@@ -2511,13 +2511,13 @@ redis_getex_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+                     expire = zval_get_long(z_ele);
+                     persist = 0;
+                 } else if (ZSTR_STRICMP_STATIC(zkey, "PERSIST")) {
+-                    persist = zval_is_true(z_ele);
++                    persist = zend_is_true(z_ele);
+                     exp_type = NULL;
+                 }
+             } else if (Z_TYPE_P(z_ele) == IS_STRING &&
+                        zend_string_equals_literal_ci(Z_STR_P(z_ele), "PERSIST"))
+             {
+-                persist = zval_is_true(z_ele);
++                persist = zend_is_true(z_ele);
+                 exp_type = NULL;
+             }
+         } ZEND_HASH_FOREACH_END();
+@@ -2866,14 +2866,14 @@ static void redis_get_lcs_options(redisLcsOptions *dst, HashTable *ht) {
+         if (key) {
+             if (zend_string_equals_literal_ci(key, "LEN")) {
+                 dst->idx = 0;
+-                dst->len = zval_is_true(zv);
++                dst->len = zend_is_true(zv);
+             } else if (zend_string_equals_literal_ci(key, "IDX")) {
+                 dst->len = 0;
+-                dst->idx = zval_is_true(zv);
++                dst->idx = zend_is_true(zv);
+             } else if (zend_string_equals_literal_ci(key, "MINMATCHLEN")) {
+                 dst->minmatchlen = zval_get_long(zv);
+             } else if (zend_string_equals_literal_ci(key, "WITHMATCHLEN")) {
+-                dst->withmatchlen = zval_is_true(zv);
++                dst->withmatchlen = zend_is_true(zv);
+             } else {
+                 php_error_docref(NULL, E_WARNING, "Unknown LCS option '%s'", ZSTR_VAL(key));
+             }
+@@ -3662,7 +3662,7 @@ redis_hrandfield_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+                 if (zend_string_equals_literal_ci(zkey, "count")) {
+                     count = zval_get_long(z_ele);
+                 } else if (zend_string_equals_literal_ci(zkey, "withvalues")) {
+-                    withvalues = zval_is_true(z_ele);
++                    withvalues = zend_is_true(z_ele);
+                 }
+             } else if (Z_TYPE_P(z_ele) == IS_STRING) {
+                 if (zend_string_equals_literal_ci(Z_STR_P(z_ele), "WITHVALUES")) {
+@@ -3898,7 +3898,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+     // ALPHA
+     if (((z_ele = zend_hash_str_find(ht_opts, "alpha", sizeof("alpha") - 1)) != NULL ||
+          (z_ele = zend_hash_str_find(ht_opts, "ALPHA", sizeof("ALPHA") - 1)) != NULL) &&
+-         zval_is_true(z_ele)
++         zend_is_true(z_ele)
+     ) {
+         add_next_index_stringl(&z_argv, "ALPHA", sizeof("ALPHA") - 1);
+     }
+@@ -4239,7 +4239,7 @@ static int get_georadius_count_options(zval *optval, geoOptions *opts) {
+ 
+         z_tmp = zend_hash_index_find(Z_ARRVAL_P(optval), 1);
+         if (z_tmp) {
+-            opts->any = zval_is_true(z_tmp);
++            opts->any = zend_is_true(z_tmp);
+         }
+     } else {
+         if (Z_LVAL_P(optval) <= 0)
+@@ -5405,13 +5405,13 @@ redis_build_client_tracking_command(smart_string *cmdstr, int argc, zval *z_args
+                     }
+                     prefix = z_ele;
+                 } else if (zend_string_equals_literal_ci(zkey, "bcast")) {
+-                    bcast = zval_is_true(z_ele);
++                    bcast = zend_is_true(z_ele);
+                 } else if (zend_string_equals_literal_ci(zkey, "optin")) {
+-                    optin = zval_is_true(z_ele);
++                    optin = zend_is_true(z_ele);
+                 } else if (zend_string_equals_literal_ci(zkey, "optout")) {
+-                    optout = zval_is_true(z_ele);
++                    optout = zend_is_true(z_ele);
+                 } else if (zend_string_equals_literal_ci(zkey, "noloop")) {
+-                    noloop = zval_is_true(z_ele);
++                    noloop = zend_is_true(z_ele);
+                 }
+             }
+         } ZEND_HASH_FOREACH_END();
+@@ -5425,7 +5425,7 @@ redis_build_client_tracking_command(smart_string *cmdstr, int argc, zval *z_args
+         ZVAL_STRICMP_STATIC(&z_args[0], "off")
+     )) {
+         redis_cmd_append_sstr(cmdstr, Z_STRVAL(z_args[0]), Z_STRLEN(z_args[0]));
+-    } else if (zval_is_true(&z_args[0])) {
++    } else if (zend_is_true(&z_args[0])) {
+         REDIS_CMD_APPEND_SSTR_STATIC(cmdstr, "ON");
+     } else {
+         REDIS_CMD_APPEND_SSTR_STATIC(cmdstr, "OFF");
+@@ -5500,7 +5500,7 @@ redis_client_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+             ZVAL_STRICMP_STATIC(&z_args[0], "no")
+         )) {
+             redis_cmd_append_sstr(&cmdstr, Z_STRVAL(z_args[0]), Z_STRLEN(z_args[0]));
+-        } else if (zval_is_true(&z_args[0])) {
++        } else if (zend_is_true(&z_args[0])) {
+             REDIS_CMD_APPEND_SSTR_STATIC(&cmdstr, "YES");
+         } else {
+             REDIS_CMD_APPEND_SSTR_STATIC(&cmdstr, "NO");
+@@ -5530,7 +5530,7 @@ redis_client_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+             ZVAL_STRICMP_STATIC(&z_args[0], "off")
+         )) {
+             redis_cmd_append_sstr(&cmdstr, Z_STRVAL(z_args[0]), Z_STRLEN(z_args[0]));
+-        } else if (zval_is_true(&z_args[0])) {
++        } else if (zend_is_true(&z_args[0])) {
+             REDIS_CMD_APPEND_SSTR_STATIC(&cmdstr, "ON");
+         } else {
+             REDIS_CMD_APPEND_SSTR_STATIC(&cmdstr, "OFF");
+@@ -5704,7 +5704,7 @@ redis_copy_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+             if (zend_string_equals_literal_ci(zkey, "db")) {
+                 db = zval_get_long(zv);
+             } else if (zend_string_equals_literal_ci(zkey, "replace")) {
+-                replace = zval_is_true(zv);
++                replace = zend_is_true(zv);
+             }
+         } ZEND_HASH_FOREACH_END();
+     }
+@@ -6700,9 +6700,9 @@ static void parse_vadd_options(redisVAddOptions *dst, HashTable *ht) {
+                 if (validate_vadd_integer(key, zv, 1))
+                     dst->ef = Z_LVAL_P(zv);
+             } else if (zend_string_equals_literal_ci(key, "CAS")) {
+-                dst->cas = zval_is_true(zv);
++                dst->cas = zend_is_true(zv);
+             } else if (zend_string_equals_literal_ci(key, "VALUES")) {
+-                dst->values = zval_is_true(zv);
++                dst->values = zend_is_true(zv);
+             } else if (zend_string_equals_literal_ci(key, "SETATTR")) {
+                 dst->attributes = zval_to_vattr(zv);
+             }
+@@ -6897,7 +6897,7 @@ static void parse_vsim_options(redisVSimOptions *dst, HashTable *ht) {
+                 if (validate_vadd_integer(key, zv, 1))
+                     dst->count = Z_LVAL_P(zv);
+             } else if (zend_string_equals_literal_ci(key, "WITHSCORES")) {
+-                dst->withscores = zval_is_true(zv);
++                dst->withscores = zend_is_true(zv);
+             }
+         } else if (Z_TYPE_P(zv) == IS_STRING) {
+             if (zend_string_equals_literal_ci(Z_STR_P(zv), "FP32")) {
+@@ -7264,7 +7264,7 @@ void redis_setoption_handler(INTERNAL_FUNCTION_PARAMETERS,
+             }
+             break;
+         case REDIS_OPT_PACK_IGNORE_NUMBERS:
+-            redis_sock->pack_ignore_numbers = zval_is_true(val);
++            redis_sock->pack_ignore_numbers = zend_is_true(val);
+             RETURN_TRUE;
+         case REDIS_OPT_COMPRESSION_LEVEL:
+             val_long = zval_get_long(val);
+-- 
+2.55.0
+
+From 2a4b27d9f09b70bb62b403c78047ba4d207d7e63 Mon Sep 17 00:00:00 2001
+From: Niels Dossche <7771979+ndossche@users.noreply.github.com>
+Date: Sat, 15 Nov 2025 12:34:30 +0100
+Subject: [PATCH 02/10] Replace legacy zval_dtor() alias with
+ zval_ptr_dtor_nogc()
+
+(cherry picked from commit d24528e190437a47b53582f5d0b246266546db3e)
+---
+ cluster_library.c  |  46 ++++++------
+ library.c          |  60 +++++++--------
+ redis.c            |   6 +-
+ redis_array.c      |  78 +++++++++----------
+ redis_array_impl.c | 184 ++++++++++++++++++++++-----------------------
+ redis_cluster.c    |  22 +++---
+ redis_commands.c   |  12 +--
+ redis_session.c    |   8 +-
+ 8 files changed, 208 insertions(+), 208 deletions(-)
+
+diff --git a/cluster_library.c b/cluster_library.c
+index 917843f..35a37bb 100644
+--- a/cluster_library.c
++++ b/cluster_library.c
+@@ -2010,12 +2010,12 @@ PHP_REDIS_API void cluster_sub_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *
+         if ((z_tmp = zend_hash_index_find(Z_ARRVAL(z_tab), 0)) == NULL ||
+             strcasecmp(Z_STRVAL_P(z_tmp), sctx->kw) != 0
+         ) {
+-            zval_dtor(&z_tab);
++            zval_ptr_dtor_nogc(&z_tab);
+             efree(sctx);
+             RETURN_FALSE;
+         }
+ 
+-        zval_dtor(&z_tab);
++        zval_ptr_dtor_nogc(&z_tab);
+         pull = 1;
+     }
+ 
+@@ -2046,7 +2046,7 @@ PHP_REDIS_API void cluster_sub_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *
+         {
+             is_pmsg = *Z_STRVAL_P(z_type) == 'p';
+         } else {
+-            zval_dtor(&z_tab);
++            zval_ptr_dtor_nogc(&z_tab);
+             continue;
+         }
+ 
+@@ -2085,14 +2085,14 @@ PHP_REDIS_API void cluster_sub_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *
+         // If we have a return value, free it
+         zval_ptr_dtor(&z_ret);
+ 
+-        zval_dtor(&z_tab);
++        zval_ptr_dtor_nogc(&z_tab);
+     }
+ 
+     // We're no longer subscribing, due to an error
+     c->subscribed_slot = -1;
+ 
+     // Cleanup
+-    zval_dtor(&z_tab);
++    zval_ptr_dtor_nogc(&z_tab);
+     efree(sctx);
+ 
+     // Failure
+@@ -2116,8 +2116,8 @@ PHP_REDIS_API void cluster_unsub_resp(INTERNAL_FUNCTION_PARAMETERS,
+         if (!cluster_zval_mbulk_resp(INTERNAL_FUNCTION_PARAM_PASSTHRU, c, pull, mbulk_resp_loop_raw, &z_tab) ||
+             (z_chan = zend_hash_index_find(Z_ARRVAL(z_tab), 1)) == NULL
+         ) {
+-            zval_dtor(&z_tab);
+-            zval_dtor(return_value);
++            zval_ptr_dtor_nogc(&z_tab);
++            zval_ptr_dtor_nogc(return_value);
+             RETURN_FALSE;
+         }
+ 
+@@ -2125,8 +2125,8 @@ PHP_REDIS_API void cluster_unsub_resp(INTERNAL_FUNCTION_PARAMETERS,
+         if ((z_flag = zend_hash_index_find(Z_ARRVAL(z_tab), 2)) == NULL ||
+             Z_STRLEN_P(z_flag) != 2
+         ) {
+-            zval_dtor(&z_tab);
+-            zval_dtor(return_value);
++            zval_ptr_dtor_nogc(&z_tab);
++            zval_ptr_dtor_nogc(return_value);
+             RETURN_FALSE;
+         }
+ 
+@@ -2136,7 +2136,7 @@ PHP_REDIS_API void cluster_unsub_resp(INTERNAL_FUNCTION_PARAMETERS,
+         // Add result
+         add_assoc_bool(return_value, Z_STRVAL_P(z_chan), flag[1] == '1');
+ 
+-        zval_dtor(&z_tab);
++        zval_ptr_dtor_nogc(&z_tab);
+         pull = 1;
+     }
+ }
+@@ -2331,7 +2331,7 @@ cluster_gen_mbulk_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c,
+ 
+         /* Call our specified callback */
+         if (cb(c->cmd_sock, &z_result, c->reply_len, ctx) == FAILURE) {
+-            zval_dtor(&z_result);
++            zval_ptr_dtor_nogc(&z_result);
+             CLUSTER_RETURN_FALSE(c);
+         }
+     }
+@@ -2461,7 +2461,7 @@ cluster_xrange_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx) {
+     c->cmd_sock->compression = c->flags->compression;
+ 
+     if (redis_read_stream_messages(c->cmd_sock, c->reply_len, &z_messages) < 0) {
+-        zval_dtor(&z_messages);
++        zval_ptr_dtor_nogc(&z_messages);
+         CLUSTER_RETURN_FALSE(c);
+     }
+ 
+@@ -2485,7 +2485,7 @@ cluster_xread_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx) {
+     } else {
+         array_init(&z_streams);
+         if (redis_read_stream_messages_multi(c->cmd_sock, c->reply_len, &z_streams) < 0) {
+-            zval_dtor(&z_streams);
++            zval_ptr_dtor_nogc(&z_streams);
+             CLUSTER_RETURN_FALSE(c);
+         }
+     }
+@@ -2507,7 +2507,7 @@ cluster_xclaim_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx) {
+     ZEND_ASSERT(ctx == NULL || ctx == PHPREDIS_CTX_PTR);
+ 
+     if (redis_read_xclaim_reply(c->cmd_sock, c->reply_len, ctx == PHPREDIS_CTX_PTR, &z_msg) < 0) {
+-        zval_dtor(&z_msg);
++        zval_ptr_dtor_nogc(&z_msg);
+         CLUSTER_RETURN_FALSE(c);
+     }
+ 
+@@ -2542,7 +2542,7 @@ cluster_vemb_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx) {
+     return;
+ 
+ fail:
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+     CLUSTER_RETURN_FALSE(c);
+ }
+ 
+@@ -2556,7 +2556,7 @@ cluster_vinfo_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx) {
+ 
+     array_init_size(&z_ret, c->reply_len / 2);
+     if (redis_read_vinfo_response(c->cmd_sock, &z_ret, c->reply_len) != SUCCESS) {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         CLUSTER_RETURN_FALSE(c);
+     }
+ 
+@@ -2623,7 +2623,7 @@ cluster_xinfo_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx)
+ 
+     array_init(&z_ret);
+     if (redis_read_xinfo_response(c->cmd_sock, &z_ret, c->reply_len) != SUCCESS) {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         CLUSTER_RETURN_FALSE(c);
+     }
+ 
+@@ -2658,7 +2658,7 @@ cluster_acl_custom_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster *c, void *ctx
+ 
+     array_init(&z_ret);
+     if (cb(c->cmd_sock, &z_ret, c->reply_len) != SUCCESS) {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         CLUSTER_RETURN_FALSE(c);
+     }
+ 
+@@ -2701,7 +2701,7 @@ PHP_REDIS_API zval *cluster_zval_mbulk_resp(INTERNAL_FUNCTION_PARAMETERS,
+ 
+     // Call our callback
+     if (cb(c->cmd_sock, z_ret, c->reply_len, NULL) == FAILURE) {
+-        zval_dtor(z_ret);
++        zval_ptr_dtor_nogc(z_ret);
+         return NULL;
+     }
+ 
+@@ -2727,7 +2727,7 @@ PHP_REDIS_API void cluster_multi_mbulk_resp(INTERNAL_FUNCTION_PARAMETERS,
+             c->cmd_sock = SLOT_SOCK(c, fi->slot);
+ 
+             if (cluster_check_response(c, &c->reply_type) < 0) {
+-                zval_dtor(multi_resp);
++                zval_ptr_dtor_nogc(multi_resp);
+                 RETURN_FALSE;
+             }
+ 
+@@ -2742,7 +2742,7 @@ PHP_REDIS_API void cluster_multi_mbulk_resp(INTERNAL_FUNCTION_PARAMETERS,
+     }
+ 
+     // Set our return array
+-    zval_dtor(return_value);
++    zval_ptr_dtor_nogc(return_value);
+     RETVAL_ZVAL(multi_resp, 0, 1);
+ }
+ 
+@@ -2858,7 +2858,7 @@ PHP_REDIS_API void cluster_mset_resp(INTERNAL_FUNCTION_PARAMETERS, redisCluster
+     if (c->reply_type != TYPE_LINE) {
+         php_error_docref(0, E_ERROR,
+             "Invalid reply type returned for MSET command");
+-        zval_dtor(mctx->z_multi);
++        zval_ptr_dtor_nogc(mctx->z_multi);
+         efree(mctx->z_multi);
+         efree(mctx);
+         RETURN_FALSE;
+@@ -3061,7 +3061,7 @@ static int mbulk_resp_loop_zipdbl(RedisSock *redis_sock, zval *z_result,
+                 zend_string *tmp, *zstr = zval_get_tmp_string(z, &tmp);
+                 add_assoc_double_ex(z_result, ZSTR_VAL(zstr), ZSTR_LEN(zstr), atof(line));
+                 zend_tmp_string_release(tmp);
+-                zval_dtor(z);
++                zval_ptr_dtor_nogc(z);
+ 
+                 /* Free our key and line */
+                 efree(key);
+diff --git a/library.c b/library.c
+index d6af1b1..e5870ed 100644
+--- a/library.c
++++ b/library.c
+@@ -542,7 +542,7 @@ PHP_REDIS_API int redis_subscribe_response(INTERNAL_FUNCTION_PARAMETERS,
+         zend_hash_str_update_mem(subs, Z_STRVAL_P(z_tmp), Z_STRLEN_P(z_tmp),
+                                     &sctx->cb, sizeof(sctx->cb));
+ 
+-        zval_dtor(&z_resp);
++        zval_ptr_dtor_nogc(&z_resp);
+     }
+ 
+     if (strcasecmp(sctx->kw, "ssubscribe") == 0) {
+@@ -596,7 +596,7 @@ PHP_REDIS_API int redis_subscribe_response(INTERNAL_FUNCTION_PARAMETERS,
+         ) {
+             is_pmsg = *Z_STRVAL_P(z_type)=='p';
+         } else {
+-            zval_dtor(&z_resp);
++            zval_ptr_dtor_nogc(&z_resp);
+             continue;
+         }
+ 
+@@ -645,7 +645,7 @@ PHP_REDIS_API int redis_subscribe_response(INTERNAL_FUNCTION_PARAMETERS,
+ 
+         // If we have a return value free it
+         zval_ptr_dtor(&z_ret);
+-        zval_dtor(&z_resp);
++        zval_ptr_dtor_nogc(&z_resp);
+     }
+ 
+     RETVAL_TRUE;
+@@ -657,7 +657,7 @@ error:
+     zend_hash_destroy(subs);
+     efree(subs);
+ failure:
+-    zval_dtor(&z_resp);
++    zval_ptr_dtor_nogc(&z_resp);
+     RETVAL_FALSE;
+     return FAILURE;
+ }
+@@ -689,8 +689,8 @@ PHP_REDIS_API int redis_unsubscribe_response(INTERNAL_FUNCTION_PARAMETERS,
+             (z_chan = zend_hash_index_find(Z_ARRVAL(z_resp), 1)) == NULL
+         ) {
+             efree(sctx);
+-            zval_dtor(&z_resp);
+-            zval_dtor(&z_ret);
++            zval_ptr_dtor_nogc(&z_resp);
++            zval_ptr_dtor_nogc(&z_ret);
+             RETVAL_FALSE;
+             return FAILURE;
+         }
+@@ -704,7 +704,7 @@ PHP_REDIS_API int redis_unsubscribe_response(INTERNAL_FUNCTION_PARAMETERS,
+             add_assoc_bool_ex(&z_ret, Z_STRVAL_P(z_chan), Z_STRLEN_P(z_chan), 1);
+         }
+ 
+-        zval_dtor(&z_resp);
++        zval_ptr_dtor_nogc(&z_resp);
+     }
+ 
+     efree(sctx);
+@@ -1576,7 +1576,7 @@ redis_read_lpos_response(zval *zdst, RedisSock *redis_sock, char reply_type,
+ 
+         for (i = 0;  i < elements; ++i) {
+             if (redis_sock_gets(redis_sock, inbuf, sizeof(inbuf), &len) < 0) {
+-                zval_dtor(zdst);
++                zval_ptr_dtor_nogc(zdst);
+                 return FAILURE;
+             }
+             add_next_index_long(zdst, atol(inbuf + 1));
+@@ -1739,7 +1739,7 @@ static void array_zip_values_and_scores(RedisSock *redis_sock, zval *z_tab,
+     }
+ 
+     /* replace */
+-    zval_dtor(z_tab);
++    zval_ptr_dtor_nogc(z_tab);
+     ZVAL_ZVAL(z_tab, &z_ret, 0, 0);
+ }
+ 
+@@ -1755,7 +1755,7 @@ array_zip_values_recursive(zval *z_tab)
+          zend_hash_move_forward(Z_ARRVAL_P(z_tab))
+     ) {
+         if ((zv = zend_hash_get_current_data(Z_ARRVAL_P(z_tab))) == NULL) {
+-            zval_dtor(&z_ret);
++            zval_ptr_dtor_nogc(&z_ret);
+             return FAILURE;
+         }
+         if (Z_TYPE_P(zv) == IS_STRING) {
+@@ -1763,12 +1763,12 @@ array_zip_values_recursive(zval *z_tab)
+             zend_hash_move_forward(Z_ARRVAL_P(z_tab));
+             if ((zv = zend_hash_get_current_data(Z_ARRVAL_P(z_tab))) == NULL) {
+                 zend_string_release(zkey);
+-                zval_dtor(&z_ret);
++                zval_ptr_dtor_nogc(&z_ret);
+                 return FAILURE;
+             }
+             if (Z_TYPE_P(zv) == IS_ARRAY && array_zip_values_recursive(zv) != SUCCESS) {
+                 zend_string_release(zkey);
+-                zval_dtor(&z_ret);
++                zval_ptr_dtor_nogc(&z_ret);
+                 return FAILURE;
+             }
+             ZVAL_ZVAL(&z_sub, zv, 1, 0);
+@@ -1776,14 +1776,14 @@ array_zip_values_recursive(zval *z_tab)
+             zend_string_release(zkey);
+         } else {
+             if (Z_TYPE_P(zv) == IS_ARRAY && array_zip_values_recursive(zv) != SUCCESS) {
+-                zval_dtor(&z_ret);
++                zval_ptr_dtor_nogc(&z_ret);
+                 return FAILURE;
+             }
+             ZVAL_ZVAL(&z_sub, zv, 1, 0);
+             add_next_index_zval(&z_ret, &z_sub);
+         }
+     }
+-    zval_dtor(z_tab);
++    zval_ptr_dtor_nogc(z_tab);
+     ZVAL_ZVAL(z_tab, &z_ret, 0, 0);
+     return SUCCESS;
+ }
+@@ -1865,7 +1865,7 @@ redis_read_mpop_response(RedisSock *redis_sock, zval *zdst, int elements,
+         int i;
+         for (i = 0; i < elements; i++) {
+             if (read_mbulk_header(redis_sock, &subele) < 0 || subele != 2) {
+-                zval_dtor(&zele);
++                zval_ptr_dtor_nogc(&zele);
+                 goto fail;
+             }
+             redis_mbulk_reply_loop(redis_sock, &zele, subele, UNSERIALIZE_KEYS);
+@@ -1881,7 +1881,7 @@ redis_read_mpop_response(RedisSock *redis_sock, zval *zdst, int elements,
+     return SUCCESS;
+ 
+ fail:
+-    zval_dtor(zdst);
++    zval_ptr_dtor_nogc(zdst);
+     ZVAL_FALSE(zdst);
+ 
+     return FAILURE;
+@@ -1962,7 +1962,7 @@ redis_read_geosearch_response(zval *zdst, RedisSock *redis_sock,
+         } ZEND_HASH_FOREACH_END();
+ 
+         // Cleanup
+-        zval_dtor(&z_multi_result);
++        zval_ptr_dtor_nogc(&z_multi_result);
+     }
+ 
+     return SUCCESS;
+@@ -2042,7 +2042,7 @@ redis_hello_response(INTERNAL_FUNCTION_PARAMETERS,
+     if (redis_read_multibulk_recursive(redis_sock, numElems, 0, &z_ret) != SUCCESS ||
+         array_zip_values_recursive(&z_ret) != SUCCESS)
+     {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         goto fail;
+     }
+ 
+@@ -2063,7 +2063,7 @@ redis_hello_response(INTERNAL_FUNCTION_PARAMETERS,
+     zv = zend_hash_str_find(Z_ARRVAL(z_ret), ZEND_STRL("version"));
+     redis_sock->hello.version = zv ? zval_get_string(zv) : ZSTR_EMPTY_ALLOC();
+ 
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     if (ctx == PHPREDIS_CTX_PTR) {
+         ZVAL_STR_COPY(&z_ret, redis_sock->hello.server);
+@@ -2227,7 +2227,7 @@ redis_xrange_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+     if (read_mbulk_header(redis_sock, &messages) < 0 ||
+         redis_read_stream_messages(redis_sock, messages, &z_messages) < 0)
+     {
+-        zval_dtor(&z_messages);
++        zval_ptr_dtor_nogc(&z_messages);
+         REDIS_RESPONSE_ERROR(redis_sock, z_tab);
+         return -1;
+     }
+@@ -2267,7 +2267,7 @@ redis_read_stream_messages_multi(RedisSock *redis_sock, int count, zval *z_strea
+     return 0;
+ failure:
+     efree(id);
+-    zval_dtor(&z_messages);
++    zval_ptr_dtor_nogc(&z_messages);
+     return -1;
+ }
+ 
+@@ -2293,7 +2293,7 @@ redis_xread_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+     return 0;
+ 
+ cleanup:
+-    zval_dtor(&z_rv);
++    zval_ptr_dtor_nogc(&z_rv);
+ failure:
+     REDIS_RESPONSE_ERROR(redis_sock, z_tab);
+     return -1;
+@@ -2400,8 +2400,8 @@ redis_read_xclaim_reply(RedisSock *redis_sock, int count, int is_xautoclaim, zva
+     return 0;
+ 
+ failure:
+-    zval_dtor(&z_msgs);
+-    zval_dtor(rv);
++    zval_ptr_dtor_nogc(&z_msgs);
++    zval_ptr_dtor_nogc(rv);
+     if (id) efree(id);
+ 
+     return -1;
+@@ -2473,7 +2473,7 @@ redis_read_xinfo_response(RedisSock *redis_sock, zval *z_ret, int elements)
+         case TYPE_MULTIBULK:
+             array_init(&zv);
+             if (redis_read_xinfo_response(redis_sock, &zv, li) != SUCCESS) {
+-                zval_dtor(&zv);
++                zval_ptr_dtor_nogc(&zv);
+                 goto failure;
+             }
+             if (key) {
+@@ -2555,7 +2555,7 @@ redis_vinfo_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+     array_init_size(&z_ret, count / 2);
+ 
+     if (redis_read_vinfo_response(redis_sock, &z_ret, count) != SUCCESS) {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         REDIS_RESPONSE_ERROR(redis_sock, z_tab);
+         return FAILURE;
+     }
+@@ -2623,7 +2623,7 @@ redis_vemb_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+     array_init_size(&z_ret, count);
+ 
+     if (redis_read_vemb_response(redis_sock, &z_ret, count) != SUCCESS) {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         REDIS_RESPONSE_ERROR(redis_sock, z_tab);
+         return FAILURE;
+     }
+@@ -2685,7 +2685,7 @@ redis_vlinks_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+     return SUCCESS;
+ 
+ fail:
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+     REDIS_RESPONSE_ERROR(redis_sock, z_tab);
+     return FAILURE;
+ }
+@@ -2760,7 +2760,7 @@ redis_xinfo_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+             REDIS_RETURN_ZVAL(redis_sock, z_tab, z_ret);
+             return SUCCESS;
+         }
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+     }
+ 
+     REDIS_RESPONSE_ERROR(redis_sock, z_tab);
+@@ -2854,7 +2854,7 @@ int redis_acl_custom_reply(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+ 
+         res = cb(redis_sock, &zret, len);
+         if (res == FAILURE) {
+-            zval_dtor(&zret);
++            zval_ptr_dtor_nogc(&zret);
+             ZVAL_FALSE(&zret);
+         }
+     } else {
+diff --git a/redis.c b/redis.c
+index f300fb4..d0171ec 100644
+--- a/redis.c
++++ b/redis.c
+@@ -2227,7 +2227,7 @@ PHP_METHOD(Redis, exec)
+         redis_sock->mode &= ~MULTI;
+         redis_sock->watching = 0;
+         if (ret < 0) {
+-            zval_dtor(&z_ret);
++            zval_ptr_dtor_nogc(&z_ret);
+             ZVAL_FALSE(&z_ret);
+         }
+     }
+@@ -2244,7 +2244,7 @@ PHP_METHOD(Redis, exec)
+                 array_init(&z_ret);
+                 if (redis_sock_read_multibulk_multi_reply_loop(
+                     INTERNAL_FUNCTION_PARAM_PASSTHRU, redis_sock, &z_ret) != SUCCESS) {
+-                    zval_dtor(&z_ret);
++                    zval_ptr_dtor_nogc(&z_ret);
+                     ZVAL_FALSE(&z_ret);
+                 }
+             }
+@@ -3069,7 +3069,7 @@ generic_scan_cmd(INTERNAL_FUNCTION_PARAMETERS, REDIS_SCAN_TYPE type) {
+         /* Free our previous reply if we're back in the loop.  We know we are
+          * if our return_value is an array */
+         if (Z_TYPE_P(return_value) == IS_ARRAY) {
+-            zval_dtor(return_value);
++            zval_ptr_dtor_nogc(return_value);
+             ZVAL_NULL(return_value);
+         }
+ 
+diff --git a/redis_array.c b/redis_array.c
+index ea4b3d7..ee4b8d7 100644
+--- a/redis_array.c
++++ b/redis_array.c
+@@ -66,17 +66,17 @@ redis_array_free(RedisArray *ra)
+ 
+     /* Redis objects */
+     for(i = 0; i< ra->count; i++) {
+-        zval_dtor(&ra->redis[i]);
++        zval_ptr_dtor_nogc(&ra->redis[i]);
+         zend_string_release(ra->hosts[i]);
+     }
+     efree(ra->redis);
+     efree(ra->hosts);
+ 
+     /* delete hash function */
+-    zval_dtor(&ra->z_fun);
++    zval_ptr_dtor_nogc(&ra->z_fun);
+ 
+     /* Distributor */
+-    zval_dtor(&ra->z_dist);
++    zval_ptr_dtor_nogc(&ra->z_dist);
+ 
+     /* Hashing algorithm */
+     if (ra->algorithm) zend_string_release(ra->algorithm);
+@@ -215,8 +215,8 @@ PHP_METHOD(RedisArray, __construct)
+     if (algorithm) zend_string_release(algorithm);
+     if (user) zend_string_release(user);
+     if (pass) zend_string_release(pass);
+-    zval_dtor(&z_dist);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_dist);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+ finish:
+ 
+@@ -278,10 +278,10 @@ ra_forward_call(INTERNAL_FUNCTION_PARAMETERS, RedisArray *ra, const char *cmd,
+     /* multi/exec */
+     if(ra->z_multi_exec) {
+         call_user_function(&redis_ce->function_table, ra->z_multi_exec, &z_fun, return_value, argc, z_callargs);
+-        zval_dtor(return_value);
+-        zval_dtor(&z_fun);
++        zval_ptr_dtor_nogc(return_value);
++        zval_ptr_dtor_nogc(&z_fun);
+         for (i = 0; i < argc; ++i) {
+-            zval_dtor(&z_callargs[i]);
++            zval_ptr_dtor_nogc(&z_callargs[i]);
+         }
+         efree(z_callargs);
+         RETURN_ZVAL(getThis(), 1, 0);
+@@ -296,7 +296,7 @@ ra_forward_call(INTERNAL_FUNCTION_PARAMETERS, RedisArray *ra, const char *cmd,
+         ra_index_multi(redis_inst, MULTI);
+         /* call using discarded temp value and extract exec results after. */
+         call_user_function(&redis_ce->function_table, redis_inst, &z_fun, return_value, argc, z_callargs);
+-        zval_dtor(return_value);
++        zval_ptr_dtor_nogc(return_value);
+ 
+         /* add keys to index. */
+         ra_index_key(key, key_len, redis_inst);
+@@ -310,7 +310,7 @@ ra_forward_call(INTERNAL_FUNCTION_PARAMETERS, RedisArray *ra, const char *cmd,
+             /* check if we have an error. */
+             if (ra->prev && RA_CALL_FAILED(return_value, cmd)) { /* there was an error reading, try with prev ring. */
+                 /* Free previous return value */
+-                zval_dtor(return_value);
++                zval_ptr_dtor_nogc(return_value);
+ 
+                 /* ERROR, FALLBACK TO PREVIOUS RING and forward a reference to the first redis instance we were looking at. */
+                 ra_forward_call(INTERNAL_FUNCTION_PARAM_PASSTHRU, ra->prev, cmd, cmd_len, z_args, z_new_target ? z_new_target : redis_inst);
+@@ -324,9 +324,9 @@ ra_forward_call(INTERNAL_FUNCTION_PARAMETERS, RedisArray *ra, const char *cmd,
+     }
+ 
+     /* cleanup */
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+     for (i = 0; i < argc; ++i) {
+-        zval_dtor(&z_callargs[i]);
++        zval_ptr_dtor_nogc(&z_callargs[i]);
+     }
+     efree(z_callargs);
+ }
+@@ -544,7 +544,7 @@ multihost_distribute(INTERNAL_FUNCTION_PARAMETERS, const char *method_name)
+ 
+     multihost_distribute_call(ra, return_value, &z_fun, 0, NULL);
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ }
+ 
+ static void
+@@ -569,7 +569,7 @@ multihost_distribute_flush(INTERNAL_FUNCTION_PARAMETERS, const char *method_name
+ 
+     multihost_distribute_call(ra, return_value, &z_fun, 1, z_args);
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ }
+ 
+ PHP_METHOD(RedisArray, info)
+@@ -630,8 +630,8 @@ PHP_METHOD(RedisArray, keys)
+ 
+     multihost_distribute_call(ra, return_value, &z_fun, 1, z_args);
+ 
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_fun);
+ }
+ 
+ PHP_METHOD(RedisArray, getOption)
+@@ -657,7 +657,7 @@ PHP_METHOD(RedisArray, getOption)
+ 
+     multihost_distribute_call(ra, return_value, &z_fun, 1, z_args);
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ }
+ 
+ PHP_METHOD(RedisArray, setOption)
+@@ -686,8 +686,8 @@ PHP_METHOD(RedisArray, setOption)
+ 
+     multihost_distribute_call(ra, return_value, &z_fun, 2, z_args);
+ 
+-    zval_dtor(&z_args[1]);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_args[1]);
++    zval_ptr_dtor_nogc(&z_fun);
+ }
+ 
+ PHP_METHOD(RedisArray, select)
+@@ -713,7 +713,7 @@ PHP_METHOD(RedisArray, select)
+ 
+     multihost_distribute_call(ra, return_value, &z_fun, 1, z_args);
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ }
+ 
+ #define HANDLE_MULTI_EXEC(ra, cmd, cmdlen) do { \
+@@ -733,7 +733,7 @@ PHP_METHOD(RedisArray, select)
+         } \
+         /* call */\
+         ra_forward_call(INTERNAL_FUNCTION_PARAM_PASSTHRU, ra, cmd, cmdlen, &z_arg_array, NULL); \
+-        zval_dtor(&z_arg_array); \
++        zval_ptr_dtor_nogc(&z_arg_array); \
+         return; \
+     } \
+ } while(0)
+@@ -826,13 +826,13 @@ PHP_METHOD(RedisArray, mget)
+         call_user_function(&redis_ce->function_table, &ra->redis[n], &z_fun, &z_ret, 1, &z_arg);
+ 
+         /* cleanup args array */
+-        zval_dtor(&z_arg);
++        zval_ptr_dtor_nogc(&z_arg);
+ 
+         /* Error out if we didn't get a proper response */
+         if (Z_TYPE(z_ret) != IS_ARRAY) {
+             /* cleanup */
+-            zval_dtor(&z_ret);
+-            zval_dtor(&z_tmp_array);
++            zval_ptr_dtor_nogc(&z_ret);
++            zval_ptr_dtor_nogc(&z_tmp_array);
+             RETVAL_FALSE;
+             goto cleanup;
+         }
+@@ -843,10 +843,10 @@ PHP_METHOD(RedisArray, mget)
+             ZVAL_ZVAL(&z_arg, z_cur, 1, 0);
+             add_index_zval(&z_tmp_array, i, &z_arg);
+         }
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+     }
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     array_init(return_value);
+     /* copy temp array in the right order to return_value */
+@@ -858,7 +858,7 @@ PHP_METHOD(RedisArray, mget)
+     }
+ 
+     /* cleanup */
+-    zval_dtor(&z_tmp_array);
++    zval_ptr_dtor_nogc(&z_tmp_array);
+ cleanup:
+     efree(argv);
+     efree(pos);
+@@ -955,7 +955,7 @@ PHP_METHOD(RedisArray, mset)
+         }
+ 
+         if(!found) {
+-            zval_dtor(&z_argarray);
++            zval_ptr_dtor_nogc(&z_argarray);
+             continue; /* don't run empty MSETs */
+         }
+ 
+@@ -968,11 +968,11 @@ PHP_METHOD(RedisArray, mset)
+             call_user_function(&redis_ce->function_table, &ra->redis[n], &z_fun, &z_ret, 1, &z_argarray);
+         }
+ 
+-        zval_dtor(&z_argarray);
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_argarray);
++        zval_ptr_dtor_nogc(&z_ret);
+     }
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     /* Free any keys that we needed to allocate memory for, because they weren't strings */
+     for(i = 0; i < argc; i++) {
+@@ -1028,7 +1028,7 @@ ra_generic_del(INTERNAL_FUNCTION_PARAMETERS, char *kw, int kw_len)
+     /* init data structures */
+     h_keys = Z_ARRVAL(z_keys);
+     if ((argc = zend_hash_num_elements(h_keys)) == 0) {
+-        if (free_zkeys) zval_dtor(&z_keys);
++        if (free_zkeys) zval_ptr_dtor_nogc(&z_keys);
+         efree(z_args);
+         RETURN_FALSE;
+     }
+@@ -1076,7 +1076,7 @@ ra_generic_del(INTERNAL_FUNCTION_PARAMETERS, char *kw, int kw_len)
+         }
+ 
+         if(!found) {    /* don't run empty DEL or UNLINK commands */
+-            zval_dtor(&z_argarray);
++            zval_ptr_dtor_nogc(&z_argarray);
+             continue;
+         }
+ 
+@@ -1090,11 +1090,11 @@ ra_generic_del(INTERNAL_FUNCTION_PARAMETERS, char *kw, int kw_len)
+         }
+         total += Z_LVAL(z_ret);    /* increment total */
+ 
+-        zval_dtor(&z_argarray);
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_argarray);
++        zval_ptr_dtor_nogc(&z_ret);
+     }
+ 
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     RETVAL_LONG(total);
+ 
+@@ -1104,7 +1104,7 @@ cleanup:
+     efree(argc_each);
+ 
+     if(free_zkeys) {
+-        zval_dtor(&z_keys);
++        zval_ptr_dtor_nogc(&z_keys);
+     }
+     efree(z_args);
+ }
+@@ -1148,7 +1148,7 @@ ra_generic_scan_cmd(INTERNAL_FUNCTION_PARAMETERS, const char *kw, int kw_len)
+ 
+     ZVAL_STRINGL(&z_fun, kw, kw_len);
+     call_user_function(&redis_ce->function_table, redis_inst, &z_fun, return_value, ZEND_NUM_ARGS(), z_args);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     ZVAL_ZVAL(z_cursor, &z_args[1], 0, 1);
+ }
+@@ -1194,7 +1194,7 @@ PHP_METHOD(RedisArray, scan)
+ 
+     ZVAL_STRING(&z_fun, "SCAN");
+     call_user_function(&redis_ce->function_table, redis_inst, &z_fun, return_value, ZEND_NUM_ARGS() - 1, z_args);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     ZVAL_ZVAL(z_iter, &z_args[0], 0, 1);
+ }
+diff --git a/redis_array_impl.c b/redis_array_impl.c
+index a8d0687..90e592f 100644
+--- a/redis_array_impl.c
++++ b/redis_array_impl.c
+@@ -202,7 +202,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zval(Z_ARRVAL(z_tmp), name, name_len, &z_fun, 1, 0);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find distributor */
+@@ -210,7 +210,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zval(Z_ARRVAL(z_tmp), name, name_len, &z_dist, 1, 0);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find hash algorithm */
+@@ -218,7 +218,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_string(Z_ARRVAL(z_tmp), name, name_len, &algorithm);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find index option */
+@@ -226,7 +226,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_index);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find autorehash option */
+@@ -234,7 +234,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_autorehash);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find retry interval option */
+@@ -242,7 +242,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_long(Z_ARRVAL(z_tmp), name, name_len, &l_retry_interval);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find pconnect option */
+@@ -250,7 +250,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_pconnect);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find lazy connect option */
+@@ -258,7 +258,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_lazy_connect);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find connect timeout option */
+@@ -266,7 +266,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &d_connect_timeout);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find read timeout option */
+@@ -274,7 +274,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &read_timeout);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find consistent option */
+@@ -285,7 +285,7 @@ RedisArray *ra_load_array(const char *name) {
+             consistent = Z_TYPE_P(z_data) == IS_STRING &&
+                          redis_strncmp(Z_STRVAL_P(z_data), ZEND_STRL("1")) == 0;
+         }
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* find auth option */
+@@ -293,7 +293,7 @@ RedisArray *ra_load_array(const char *name) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_auth(Z_ARRVAL(z_tmp), name, name_len, &user, &pass);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* create RedisArray object */
+@@ -309,10 +309,10 @@ RedisArray *ra_load_array(const char *name) {
+     if (user) zend_string_release(user);
+     if (pass) zend_string_release(pass);
+ 
+-    zval_dtor(&z_params_hosts);
+-    zval_dtor(&z_params_prev);
+-    zval_dtor(&z_dist);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_params_hosts);
++    zval_ptr_dtor_nogc(&z_params_prev);
++    zval_ptr_dtor_nogc(&z_dist);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     return ra;
+ }
+@@ -385,7 +385,7 @@ ra_make_array(HashTable *hosts, zval *z_fun, zval *z_dist, HashTable *hosts_prev
+ 
+     if (ra_load_hosts(ra, hosts, user, pass, retry_interval, b_lazy_connect) == NULL || !ra->count) {
+         for (i = 0; i < ra->count; ++i) {
+-            zval_dtor(&ra->redis[i]);
++            zval_ptr_dtor_nogc(&ra->redis[i]);
+             zend_string_release(ra->hosts[i]);
+         }
+         efree(ra->redis);
+@@ -435,8 +435,8 @@ ra_call_extractor(RedisArray *ra, const char *key, int key_len)
+         out = zval_get_string(&z_ret);
+     }
+ 
+-    zval_dtor(&z_argv);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_argv);
++    zval_ptr_dtor_nogc(&z_ret);
+     return out;
+ }
+ 
+@@ -474,8 +474,8 @@ ra_call_distributor(RedisArray *ra, const char *key, int key_len)
+ 
+     ret = (Z_TYPE(z_ret) == IS_LONG) ? Z_LVAL(z_ret) : -1;
+ 
+-    zval_dtor(&z_argv);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_argv);
++    zval_ptr_dtor_nogc(&z_ret);
+     return ret;
+ }
+ 
+@@ -573,8 +573,8 @@ ra_index_multi(zval *z_redis, long multi_value) {
+     ZVAL_STRINGL(&z_fun_multi, "MULTI", 5);
+     ZVAL_LONG(&z_args[0], multi_value);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun_multi, &z_ret, 1, z_args);
+-    zval_dtor(&z_fun_multi);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_multi);
++    zval_ptr_dtor_nogc(&z_ret);
+ }
+ 
+ static void
+@@ -604,9 +604,9 @@ ra_index_change_keys(const char *cmd, zval *z_keys, zval *z_redis) {
+     /* run cmd */
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun, &z_ret, argc, z_args);
+ 
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(&z_fun);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_fun);
++    zval_ptr_dtor_nogc(&z_ret);
+     efree(z_args);      /* free container */
+ }
+ 
+@@ -643,7 +643,7 @@ ra_index_keys(zval *z_pairs, zval *z_redis) {
+     ra_index_change_keys("SADD", &z_keys, z_redis);
+ 
+     /* cleanup */
+-    zval_dtor(&z_keys);
++    zval_ptr_dtor_nogc(&z_keys);
+ }
+ 
+ void
+@@ -659,10 +659,10 @@ ra_index_key(const char *key, int key_len, zval *z_redis) {
+ 
+     /* run SADD */
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun_sadd, &z_ret, 2, z_args);
+-    zval_dtor(&z_fun_sadd);
+-    zval_dtor(&z_args[1]);
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_sadd);
++    zval_ptr_dtor_nogc(&z_args[1]);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_ret);
+ }
+ 
+ void
+@@ -673,7 +673,7 @@ ra_index_exec(zval *z_redis, zval *return_value, int keep_all) {
+     /* run EXEC */
+     ZVAL_STRINGL(&z_fun_exec, "EXEC", 4);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun_exec, &z_ret, 0, NULL);
+-    zval_dtor(&z_fun_exec);
++    zval_ptr_dtor_nogc(&z_fun_exec);
+ 
+     /* extract first element of exec array and put into return_value. */
+     if(Z_TYPE(z_ret) == IS_ARRAY) {
+@@ -686,7 +686,7 @@ ra_index_exec(zval *z_redis, zval *return_value, int keep_all) {
+                 }
+         }
+     }
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     /* zval *zptr = &z_ret; */
+     /* php_var_dump(&zptr, 0); */
+@@ -701,8 +701,8 @@ ra_index_discard(zval *z_redis, zval *return_value) {
+     ZVAL_STRINGL(&z_fun_discard, "DISCARD", 7);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun_discard, &z_ret, 0, NULL);
+ 
+-    zval_dtor(&z_fun_discard);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_discard);
++    zval_ptr_dtor_nogc(&z_ret);
+ }
+ 
+ void
+@@ -714,8 +714,8 @@ ra_index_unwatch(zval *z_redis, zval *return_value) {
+     ZVAL_STRINGL(&z_fun_unwatch, "UNWATCH", 7);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun_unwatch, &z_ret, 0, NULL);
+ 
+-    zval_dtor(&z_fun_unwatch);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_unwatch);
++    zval_ptr_dtor_nogc(&z_ret);
+ }
+ 
+ zend_bool
+@@ -753,15 +753,15 @@ ra_get_key_type(zval *z_redis, const char *key, int key_len, zval *z_from, long
+     ZVAL_NULL(&z_ret);
+     ZVAL_STRINGL(&z_fun, "TYPE", 4);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun, &z_ret, 1, &z_arg);
+-    zval_dtor(&z_fun);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     /* run TYPE */
+     ZVAL_NULL(&z_ret);
+     ZVAL_STRINGL(&z_fun, "TTL", 3);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun, &z_ret, 1, &z_arg);
+-    zval_dtor(&z_fun);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     /* Get the result from the pipeline. */
+     ra_index_exec(z_from, &z_ret, 1);
+@@ -775,8 +775,8 @@ ra_get_key_type(zval *z_redis, const char *key, int key_len, zval *z_from, long
+             res[i++] = Z_LVAL_P(z_data);
+         } ZEND_HASH_FOREACH_END();
+     }
+-    zval_dtor(&z_arg);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_arg);
++    zval_ptr_dtor_nogc(&z_ret);
+     return success;
+ }
+ 
+@@ -794,10 +794,10 @@ ra_remove_from_index(zval *z_redis, const char *key, int key_len) {
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun_srem, &z_ret, 2, z_args);
+ 
+     /* cleanup */
+-    zval_dtor(&z_fun_srem);
+-    zval_dtor(&z_args[1]);
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_srem);
++    zval_ptr_dtor_nogc(&z_args[1]);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_ret);
+ }
+ 
+ 
+@@ -814,9 +814,9 @@ ra_del_key(const char *key, int key_len, zval *z_from) {
+     ZVAL_STRINGL(&z_fun_del, "DEL", 3);
+     ZVAL_STRINGL(&z_args[0], key, key_len);
+     call_user_function(&redis_ce->function_table, z_from, &z_fun_del, &z_ret, 1, z_args);
+-    zval_dtor(&z_fun_del);
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_del);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     /* remove key from index */
+     ra_remove_from_index(z_from, key, key_len);
+@@ -839,9 +839,9 @@ ra_expire_key(const char *key, int key_len, zval *z_to, long ttl) {
+         ZVAL_STRINGL(&z_args[0], key, key_len);
+         ZVAL_LONG(&z_args[1], ttl);
+         call_user_function(&redis_ce->function_table, z_to, &z_fun_expire, &z_ret, 2, z_args);
+-        zval_dtor(&z_fun_expire);
+-        zval_dtor(&z_args[0]);
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_fun_expire);
++        zval_ptr_dtor_nogc(&z_args[0]);
++        zval_ptr_dtor_nogc(&z_ret);
+     }
+ 
+     return 1;
+@@ -863,15 +863,15 @@ ra_move_zset(const char *key, int key_len, zval *z_from, zval *z_to, long ttl) {
+     ZVAL_STRINGL(&z_args[2], "-1", 2);
+     ZVAL_BOOL(&z_args[3], 1);
+     call_user_function(&redis_ce->function_table, z_from, &z_fun_zrange, &z_ret, 4, z_args);
+-    zval_dtor(&z_fun_zrange);
+-    zval_dtor(&z_args[2]);
+-    zval_dtor(&z_args[1]);
+-    zval_dtor(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_fun_zrange);
++    zval_ptr_dtor_nogc(&z_args[2]);
++    zval_ptr_dtor_nogc(&z_args[1]);
++    zval_ptr_dtor_nogc(&z_args[0]);
+ 
+ 
+     if(Z_TYPE(z_ret) != IS_ARRAY) { /* key not found or replaced */
+         /* TODO: report? */
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         return 0;
+     }
+ 
+@@ -906,13 +906,13 @@ ra_move_zset(const char *key, int key_len, zval *z_from, zval *z_to, long ttl) {
+     ra_expire_key(key, key_len, z_to, ttl);
+ 
+     /* cleanup */
+-    zval_dtor(&z_fun_zadd);
+-    zval_dtor(&z_ret_dest);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_zadd);
++    zval_ptr_dtor_nogc(&z_ret_dest);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     /* Free the array itself */
+     for (i = 0; i < 1 + 2 * count; i++) {
+-        zval_dtor(&z_zadd_args[i]);
++        zval_ptr_dtor_nogc(&z_zadd_args[i]);
+     }
+     efree(z_zadd_args);
+ 
+@@ -928,12 +928,12 @@ ra_move_string(const char *key, int key_len, zval *z_from, zval *z_to, long ttl)
+     ZVAL_STRINGL(&z_fun_get, "GET", 3);
+     ZVAL_STRINGL(&z_args[0], key, key_len);
+     call_user_function(&redis_ce->function_table, z_from, &z_fun_get, &z_ret, 1, z_args);
+-    zval_dtor(&z_fun_get);
++    zval_ptr_dtor_nogc(&z_fun_get);
+ 
+     if(Z_TYPE(z_ret) != IS_STRING) { /* key not found or replaced */
+         /* TODO: report? */
+-        zval_dtor(&z_args[0]);
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_args[0]);
++        zval_ptr_dtor_nogc(&z_ret);
+         return 0;
+     }
+ 
+@@ -942,21 +942,21 @@ ra_move_string(const char *key, int key_len, zval *z_from, zval *z_to, long ttl)
+         ZVAL_STRINGL(&z_fun_set, "SETEX", 5);
+         ZVAL_LONG(&z_args[1], ttl);
+         ZVAL_STRINGL(&z_args[2], Z_STRVAL(z_ret), Z_STRLEN(z_ret)); /* copy z_ret to arg 1 */
+-        zval_dtor(&z_ret); /* free memory from our previous call */
++        zval_ptr_dtor_nogc(&z_ret); /* free memory from our previous call */
+         call_user_function(&redis_ce->function_table, z_to, &z_fun_set, &z_ret, 3, z_args);
+         /* cleanup */
+-        zval_dtor(&z_args[2]);
++        zval_ptr_dtor_nogc(&z_args[2]);
+     } else {
+         ZVAL_STRINGL(&z_fun_set, "SET", 3);
+         ZVAL_STRINGL(&z_args[1], Z_STRVAL(z_ret), Z_STRLEN(z_ret)); /* copy z_ret to arg 1 */
+-        zval_dtor(&z_ret); /* free memory from our previous return value */
++        zval_ptr_dtor_nogc(&z_ret); /* free memory from our previous return value */
+         call_user_function(&redis_ce->function_table, z_to, &z_fun_set, &z_ret, 2, z_args);
+         /* cleanup */
+-        zval_dtor(&z_args[1]);
++        zval_ptr_dtor_nogc(&z_args[1]);
+     }
+-    zval_dtor(&z_fun_set);
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_fun_set);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     return 1;
+ }
+@@ -969,27 +969,27 @@ ra_move_hash(const char *key, int key_len, zval *z_from, zval *z_to, long ttl) {
+     ZVAL_STRINGL(&z_args[0], key, key_len);
+     ZVAL_STRINGL(&z_fun_hgetall, "HGETALL", 7);
+     call_user_function(&redis_ce->function_table, z_from, &z_fun_hgetall, &z_args[1], 1, z_args);
+-    zval_dtor(&z_fun_hgetall);
++    zval_ptr_dtor_nogc(&z_fun_hgetall);
+ 
+     if (Z_TYPE(z_args[1]) != IS_ARRAY) { /* key not found or replaced */
+         /* TODO: report? */
+-        zval_dtor(&z_args[1]);
+-        zval_dtor(&z_args[0]);
++        zval_ptr_dtor_nogc(&z_args[1]);
++        zval_ptr_dtor_nogc(&z_args[0]);
+         return 0;
+     }
+ 
+     /* run HMSET on target */
+     ZVAL_STRINGL(&z_fun_hmset, "HMSET", 5);
+     call_user_function(&redis_ce->function_table, z_to, &z_fun_hmset, &z_ret_dest, 2, z_args);
+-    zval_dtor(&z_fun_hmset);
+-    zval_dtor(&z_ret_dest);
++    zval_ptr_dtor_nogc(&z_fun_hmset);
++    zval_ptr_dtor_nogc(&z_ret_dest);
+ 
+     /* Expire if needed */
+     ra_expire_key(key, key_len, z_to, ttl);
+ 
+     /* cleanup */
+-    zval_dtor(&z_args[1]);
+-    zval_dtor(&z_args[0]);
++    zval_ptr_dtor_nogc(&z_args[1]);
++    zval_ptr_dtor_nogc(&z_args[0]);
+ 
+     return 1;
+ }
+@@ -1018,15 +1018,15 @@ ra_move_collection(const char *key, int key_len, zval *z_from, zval *z_to,
+     call_user_function(&redis_ce->function_table, z_from, &z_fun_retrieve, &z_ret, list_count, z_retrieve_args);
+ 
+     /* cleanup */
+-    zval_dtor(&z_fun_retrieve);
++    zval_ptr_dtor_nogc(&z_fun_retrieve);
+     for(i = 0; i < list_count; ++i) {
+-        zval_dtor(&z_retrieve_args[i]);
++        zval_ptr_dtor_nogc(&z_retrieve_args[i]);
+     }
+     efree(z_retrieve_args);
+ 
+     if(Z_TYPE(z_ret) != IS_ARRAY) { /* key not found or replaced */
+         /* TODO: report? */
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         return 0;
+     }
+ 
+@@ -1045,19 +1045,19 @@ ra_move_collection(const char *key, int key_len, zval *z_from, zval *z_to,
+     } ZEND_HASH_FOREACH_END();
+ 
+     /* Clean up our input return value */
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     call_user_function(&redis_ce->function_table, z_to, &z_fun_sadd, &z_ret, count, z_sadd_args);
+ 
+     /* cleanup */
+-    zval_dtor(&z_fun_sadd);
++    zval_ptr_dtor_nogc(&z_fun_sadd);
+     for (i = 0; i < count; i++) {
+-        zval_dtor(&z_sadd_args[i]);
++        zval_ptr_dtor_nogc(&z_sadd_args[i]);
+     }
+     efree(z_sadd_args);
+ 
+     /* Clean up our output return value */
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+ 
+     /* Expire if needed */
+     ra_expire_key(key, key_len, z_to, ttl);
+@@ -1150,8 +1150,8 @@ zval_rehash_callback(zend_fcall_info *z_cb, zend_fcall_info_cache *z_cb_cache,
+     zend_call_function(z_cb, z_cb_cache);
+ 
+     /* cleanup */
+-    zval_dtor(&z_args[0]);
+-    zval_dtor(z_ret);
++    zval_ptr_dtor_nogc(&z_args[0]);
++    zval_ptr_dtor_nogc(z_ret);
+ }
+ 
+ static void
+@@ -1172,8 +1172,8 @@ ra_rehash_server(RedisArray *ra, zval *z_redis, zend_string *hostname, zend_bool
+     }
+     ZVAL_NULL(&z_ret);
+     call_user_function(&redis_ce->function_table, z_redis, &z_fun, &z_ret, 1, &z_argv);
+-    zval_dtor(&z_argv);
+-    zval_dtor(&z_fun);
++    zval_ptr_dtor_nogc(&z_argv);
++    zval_ptr_dtor_nogc(&z_fun);
+ 
+     if (Z_TYPE(z_ret) == IS_ARRAY) {
+         h_keys = Z_ARRVAL(z_ret);
+@@ -1181,7 +1181,7 @@ ra_rehash_server(RedisArray *ra, zval *z_redis, zend_string *hostname, zend_bool
+     }
+ 
+     if (!count) {
+-        zval_dtor(&z_ret);
++        zval_ptr_dtor_nogc(&z_ret);
+         return;
+     }
+ 
+@@ -1203,7 +1203,7 @@ ra_rehash_server(RedisArray *ra, zval *z_redis, zend_string *hostname, zend_bool
+     } ZEND_HASH_FOREACH_END();
+ 
+     /* cleanup */
+-    zval_dtor(&z_ret);
++    zval_ptr_dtor_nogc(&z_ret);
+ }
+ 
+ void
+diff --git a/redis_cluster.c b/redis_cluster.c
+index 427987f..6f5939d 100644
+--- a/redis_cluster.c
++++ b/redis_cluster.c
+@@ -293,7 +293,7 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+     if ((z_value = zend_hash_str_find(Z_ARRVAL(z_seeds), name, name_len)) != NULL) {
+         ht_seeds = Z_ARRVAL_P(z_value);
+     } else {
+-        zval_dtor(&z_seeds);
++        zval_ptr_dtor_nogc(&z_seeds);
+         CLUSTER_THROW_EXCEPTION("Couldn't find seeds for cluster", 0);
+         return;
+     }
+@@ -303,7 +303,7 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &timeout);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* Read timeout */
+@@ -311,7 +311,7 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &read_timeout);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* Persistent connections */
+@@ -319,21 +319,21 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_bool(Z_ARRVAL(z_tmp), name, name_len, &persistent);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     if ((iptr = INI_STR("redis.clusters.auth"))) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_auth(Z_ARRVAL(z_tmp), name, name_len, &user, &pass);
+-        zval_dtor(&z_tmp);
++        zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+     /* Attempt to create/connect to the cluster */
+     redis_cluster_init(c, ht_seeds, timeout, read_timeout, persistent, user, pass, NULL);
+ 
+     /* Clean up */
+-    zval_dtor(&z_seeds);
++    zval_ptr_dtor_nogc(&z_seeds);
+     if (user) zend_string_release(user);
+     if (pass) zend_string_release(pass);
+ }
+@@ -820,7 +820,7 @@ PHP_METHOD(RedisCluster, mget) {
+     if (cluster_mkey_cmd(INTERNAL_FUNCTION_PARAM_PASSTHRU, "MGET",
+                         sizeof("MGET")-1, z_ret, cluster_mbulk_mget_resp) < 0)
+     {
+-        zval_dtor(z_ret);
++        zval_ptr_dtor_nogc(z_ret);
+         efree(z_ret);
+         RETURN_FALSE;
+     }
+@@ -851,7 +851,7 @@ PHP_METHOD(RedisCluster, msetnx) {
+     if (cluster_mset_cmd(INTERNAL_FUNCTION_PARAM_PASSTHRU, "MSETNX",
+                          sizeof("MSETNX")-1, z_ret, cluster_msetnx_resp) ==-1)
+     {
+-        zval_dtor(z_ret);
++        zval_ptr_dtor_nogc(z_ret);
+         efree(z_ret);
+         RETURN_FALSE;
+     }
+@@ -929,7 +929,7 @@ PHP_METHOD(RedisCluster, keys) {
+         {
+             php_error_docref(0, E_ERROR, "Can't send KEYS to %s:%d",
+                 ZSTR_VAL(node->sock->host), node->sock->port);
+-            zval_dtor(return_value);
++            zval_ptr_dtor_nogc(return_value);
+             efree(cmd);
+             RETURN_FALSE;
+         }
+@@ -2510,7 +2510,7 @@ static void cluster_kscan_cmd(INTERNAL_FUNCTION_PARAMETERS,
+     do {
+         /* Free our return value if we're back in the loop */
+         if (Z_TYPE_P(return_value) == IS_ARRAY) {
+-            zval_dtor(return_value);
++            zval_ptr_dtor_nogc(return_value);
+             ZVAL_NULL(return_value);
+         }
+ 
+@@ -2682,7 +2682,7 @@ PHP_METHOD(RedisCluster, scan) {
+     do {
+         /* Free our return value if we're back in the loop */
+         if (Z_TYPE_P(return_value) == IS_ARRAY) {
+-            zval_dtor(return_value);
++            zval_ptr_dtor_nogc(return_value);
+             ZVAL_NULL(return_value);
+         }
+ 
+diff --git a/redis_commands.c b/redis_commands.c
+index 9b4d4bb..2536691 100644
+--- a/redis_commands.c
++++ b/redis_commands.c
+@@ -3809,7 +3809,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+         if (slot) {
+             php_error_docref(NULL, E_WARNING,
+                 "SORT BY option is not allowed in Redis Cluster");
+-            zval_dtor(&z_argv);
++            zval_ptr_dtor_nogc(&z_argv);
+             return FAILURE;
+         }
+ 
+@@ -3839,7 +3839,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+         if (cross_slot) {
+             php_error_docref(0, E_WARNING,
+                 "Error, SORT key and STORE key have different slots!");
+-            zval_dtor(&z_argv);
++            zval_ptr_dtor_nogc(&z_argv);
+             return FAILURE;
+         }
+ 
+@@ -3860,7 +3860,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+         if (slot) {
+             php_error_docref(NULL, E_WARNING,
+                 "GET option for SORT disabled in Redis Cluster");
+-            zval_dtor(&z_argv);
++            zval_ptr_dtor_nogc(&z_argv);
+             return FAILURE;
+         }
+ 
+@@ -3889,7 +3889,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+             if (added == 0) {
+                 php_error_docref(NULL, E_WARNING,
+                     "Array of GET values requested, but none are valid");
+-                zval_dtor(&z_argv);
++                zval_ptr_dtor_nogc(&z_argv);
+                 return FAILURE;
+             }
+         }
+@@ -3919,7 +3919,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+             ) {
+                 php_error_docref(NULL, E_WARNING,
+                     "LIMIT options on SORT command must be longs or strings");
+-                zval_dtor(&z_argv);
++                zval_ptr_dtor_nogc(&z_argv);
+                 return FAILURE;
+             }
+ 
+@@ -3961,7 +3961,7 @@ int redis_sort_cmd(INTERNAL_FUNCTION_PARAMETERS, RedisSock *redis_sock,
+ 
+     /* Clean up our arguments array.  Note we don't have to free any prefixed
+      * key as that we didn't duplicate the pointer if we prefixed */
+-    zval_dtor(&z_argv);
++    zval_ptr_dtor_nogc(&z_argv);
+ 
+     // Push our length and command
+     *cmd_len = cmdstr.len;
+diff --git a/redis_session.c b/redis_session.c
+index 4628dc1..b5c1dc6 100644
+--- a/redis_session.c
++++ b/redis_session.c
+@@ -494,7 +494,7 @@ PS_OPEN_FUNC(redis)
+                     ZVAL_ZVAL(&context, zv, 1, 0);
+                 }
+ 
+-                zval_dtor(&params);
++                zval_ptr_dtor_nogc(&params);
+             }
+ 
+             if ((url->path == NULL && url->host == NULL) || weight <= 0 || timeout <= 0) {
+@@ -960,7 +960,7 @@ PS_OPEN_FUNC(rediscluster) {
+     /* We need seeds */
+     zv = REDIS_HASH_STR_FIND_TYPE_STATIC(Z_ARRVAL(z_conf), "seed", IS_ARRAY);
+     if (zv == NULL) {
+-        zval_dtor(&z_conf);
++        zval_ptr_dtor_nogc(&z_conf);
+         return FAILURE;
+     }
+ 
+@@ -977,7 +977,7 @@ PS_OPEN_FUNC(rediscluster) {
+     if (timeout < 0 || read_timeout < 0) {
+         php_error_docref(NULL, E_WARNING,
+             "Can't set negative timeout values in session configuration");
+-        zval_dtor(&z_conf);
++        zval_ptr_dtor_nogc(&z_conf);
+         return FAILURE;
+     }
+ 
+@@ -1005,7 +1005,7 @@ PS_OPEN_FUNC(rediscluster) {
+         if (user) zend_string_release(user); \
+         if (pass) zend_string_release(pass); \
+         free_seed_array(seeds, nseeds); \
+-        zval_dtor(&z_conf); \
++        zval_ptr_dtor_nogc(&z_conf); \
+ 
+     /* Extract at least one valid seed or abort */
+     seeds = cluster_validate_args(timeout, read_timeout, ht_seeds, &nseeds, NULL);
+-- 
+2.55.0
+
+From 4dab0b9d67571c8d45173613630148b7733ce05b Mon Sep 17 00:00:00 2001
+From: Niels Dossche <7771979+ndossche@users.noreply.github.com>
+Date: Sat, 15 Nov 2025 12:35:49 +0100
+Subject: [PATCH 03/10] Replace legacy ZEND_WRONG_PARAM_COUNT() alias with
+ zend_wrong_param_count()
+
+(cherry picked from commit 7d4fa6137c0bbea8cc3357a7fed45757c558fee6)
+---
+ redis.c         | 6 +++---
+ redis_cluster.c | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/redis.c b/redis.c
+index d0171ec..41e950f 100644
+--- a/redis.c
++++ b/redis.c
+@@ -1270,7 +1270,7 @@ PHP_METHOD(Redis, sPop)
+     } else if (ZEND_NUM_ARGS() == 2) {
+         REDIS_PROCESS_KW_CMD("SPOP", redis_key_long_cmd, redis_sock_read_multibulk_reply);
+     } else {
+-        ZEND_WRONG_PARAM_COUNT();
++        zend_wrong_param_count();
+     }
+ 
+ }
+@@ -1853,7 +1853,7 @@ PHP_METHOD(Redis, zPopMax)
+     } else if (ZEND_NUM_ARGS() == 2) {
+         REDIS_PROCESS_KW_CMD("ZPOPMAX", redis_key_long_cmd, redis_mbulk_reply_zipped_keys_dbl);
+     } else {
+-        ZEND_WRONG_PARAM_COUNT();
++        zend_wrong_param_count();
+     }
+ }
+ /* }}} */
+@@ -1866,7 +1866,7 @@ PHP_METHOD(Redis, zPopMin)
+     } else if (ZEND_NUM_ARGS() == 2) {
+         REDIS_PROCESS_KW_CMD("ZPOPMIN", redis_key_long_cmd, redis_mbulk_reply_zipped_keys_dbl);
+     } else {
+-        ZEND_WRONG_PARAM_COUNT();
++        zend_wrong_param_count();
+     }
+ }
+ /* }}} */
+diff --git a/redis_cluster.c b/redis_cluster.c
+index 6f5939d..3c16c2c 100644
+--- a/redis_cluster.c
++++ b/redis_cluster.c
+@@ -997,7 +997,7 @@ PHP_METHOD(RedisCluster, spop) {
+     } else if (ZEND_NUM_ARGS() == 2) {
+         CLUSTER_PROCESS_KW_CMD("SPOP", redis_key_long_cmd, cluster_mbulk_resp, 0);
+     } else {
+-        ZEND_WRONG_PARAM_COUNT();
++        zend_wrong_param_count();
+     }
+ }
+ /* }}} */
+@@ -1757,7 +1757,7 @@ PHP_METHOD(RedisCluster, zpopmax) {
+     } else if (ZEND_NUM_ARGS() == 2) {
+         CLUSTER_PROCESS_KW_CMD("ZPOPMAX", redis_key_long_cmd, cluster_mbulk_zipdbl_resp, 0);
+     } else {
+-        ZEND_WRONG_PARAM_COUNT();
++        zend_wrong_param_count();
+     }
+ }
+ /* }}} */
+@@ -1769,7 +1769,7 @@ PHP_METHOD(RedisCluster, zpopmin) {
+     } else if (ZEND_NUM_ARGS() == 2) {
+         CLUSTER_PROCESS_KW_CMD("ZPOPMIN", redis_key_long_cmd, cluster_mbulk_zipdbl_resp, 0);
+     } else {
+-        ZEND_WRONG_PARAM_COUNT();
++        zend_wrong_param_count();
+     }
+ }
+ /* }}} */
+-- 
+2.55.0
+
+From d0f8bfdd55a4b5b12a78ef2ec1e16638a207dd02 Mon Sep 17 00:00:00 2001
+From: Niels Dossche <7771979+ndossche@users.noreply.github.com>
+Date: Sat, 15 Nov 2025 12:37:28 +0100
+Subject: [PATCH 04/10] Replace lagcy WRONG_PARAM_COUNT macro with its
+ definition
+
+Depending on the version this can either throw or not, so we don't port
+over the RETURN_THROWS() part of its definition.
+
+(cherry picked from commit 3401462e00fc48c45466287eb88552462930c13a)
+---
+ redis_cluster.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/redis_cluster.c b/redis_cluster.c
+index 3c16c2c..59135be 100644
+--- a/redis_cluster.c
++++ b/redis_cluster.c
+@@ -2580,7 +2580,7 @@ PHP_METHOD(RedisCluster, acl) {
+ 
+     /* ACL in cluster needs a slot argument, and then at least the op */
+     if (argc < 2) {
+-        WRONG_PARAM_COUNT;
++        zend_wrong_param_count();
+         RETURN_FALSE;
+     }
+ 
+-- 
+2.55.0
+
+From 571e929164726a85837695800a300be08e645278 Mon Sep 17 00:00:00 2001
+From: Rasmus Lerdorf <rasmus@lerdorf.com>
+Date: Tue, 10 Mar 2026 23:24:19 -0400
+Subject: [PATCH 05/10] Fix compilation against PHP 8.6 (session save_path is
+ now zend_string*)
+
+(cherry picked from commit b8b765e610f89c44da6143f9a636a9d989d3fd82)
+---
+ redis_session.c | 30 +++++++++++++++++++++---------
+ 1 file changed, 21 insertions(+), 9 deletions(-)
+
+diff --git a/redis_session.c b/redis_session.c
+index b5c1dc6..48dfd3b 100644
+--- a/redis_session.c
++++ b/redis_session.c
+@@ -424,16 +424,22 @@ PS_OPEN_FUNC(redis)
+     zval params, context, *zv;
+     int i, j, path_len;
+ 
++#if PHP_VERSION_ID >= 80600
++    const char *save_path_str = ZSTR_VAL(save_path);
++#else
++    const char *save_path_str = save_path;
++#endif
++
+     redis_pool *pool = ecalloc(1, sizeof(*pool));
+ 
+-    for (i = 0, j = 0, path_len = strlen(save_path); i < path_len; i = j + 1) {
++    for (i = 0, j = 0, path_len = strlen(save_path_str); i < path_len; i = j + 1) {
+         /* find beginning of url */
+-        while ( i< path_len && (isspace(save_path[i]) || save_path[i] == ','))
++        while ( i< path_len && (isspace(save_path_str[i]) || save_path_str[i] == ','))
+             i++;
+ 
+         /* find end of url */
+         j = i;
+-        while (j<path_len && !isspace(save_path[j]) && save_path[j] != ',')
++        while (j<path_len && !isspace(save_path_str[j]) && save_path_str[j] != ',')
+             j++;
+ 
+         if (i < j) {
+@@ -445,18 +451,18 @@ PS_OPEN_FUNC(redis)
+             zend_string *user = NULL, *pass = NULL;
+ 
+             /* translate unix: into file: */
+-            if (!redis_strncmp(save_path+i, ZEND_STRL("unix:"))) {
++            if (!redis_strncmp(save_path_str+i, ZEND_STRL("unix:"))) {
+                 int len = j-i;
+-                char *path = estrndup(save_path+i, len);
++                char *path = estrndup(save_path_str+i, len);
+                 memcpy(path, "file:", sizeof("file:")-1);
+                 url = php_url_parse_ex(path, len);
+                 efree(path);
+             } else {
+-                url = php_url_parse_ex(save_path+i, j-i);
++                url = php_url_parse_ex(save_path_str+i, j-i);
+             }
+ 
+             if (!url) {
+-                char *path = estrndup(save_path+i, j-i);
++                char *path = estrndup(save_path_str+i, j-i);
+                 php_error_docref(NULL, E_WARNING,
+                     "Failed to parse session.save_path (error at offset %d, url was '%s')", i, path);
+                 efree(path);
+@@ -498,7 +504,7 @@ PS_OPEN_FUNC(redis)
+             }
+ 
+             if ((url->path == NULL && url->host == NULL) || weight <= 0 || timeout <= 0) {
+-                char *path = estrndup(save_path+i, j-i);
++                char *path = estrndup(save_path_str+i, j-i);
+                 php_error_docref(NULL, E_WARNING,
+                     "Failed to parse session.save_path (error at offset %d, url was '%s')", i, path);
+                 efree(path);
+@@ -953,9 +959,15 @@ PS_OPEN_FUNC(rediscluster) {
+     int persistent = 0, failover = REDIS_FAILOVER_NONE;
+     zend_string *prefix = NULL, *user = NULL, *pass = NULL, *failstr = NULL;
+ 
++#if PHP_VERSION_ID >= 80600
++    const char *save_path_str = ZSTR_VAL(save_path);
++#else
++    const char *save_path_str = save_path;
++#endif
++
+     /* Parse configuration for session handler */
+     array_init(&z_conf);
+-    sapi_module.treat_data(PARSE_STRING, estrdup(save_path), &z_conf);
++    sapi_module.treat_data(PARSE_STRING, estrdup(save_path_str), &z_conf);
+ 
+     /* We need seeds */
+     zv = REDIS_HASH_STR_FIND_TYPE_STATIC(Z_ARRVAL(z_conf), "seed", IS_ARRAY);
+-- 
+2.55.0
+
+From a8b80afeb91bcb7965067d675b1662857aff9b62 Mon Sep 17 00:00:00 2001
+From: michael-grunder <michael.grunder@gmail.com>
+Date: Thu, 26 Mar 2026 10:29:06 -0700
+Subject: [PATCH 06/10] Tiny refactor of 8.6 save path compatibility
+
+When `save_path` is a `zend_string` we don't have to calculate the
+length.
+
+(cherry picked from commit 9a170831254c9743386df54b6d81f2d3364949f6)
+---
+ redis_session.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/redis_session.c b/redis_session.c
+index 48dfd3b..de67588 100644
+--- a/redis_session.c
++++ b/redis_session.c
+@@ -426,13 +426,15 @@ PS_OPEN_FUNC(redis)
+ 
+ #if PHP_VERSION_ID >= 80600
+     const char *save_path_str = ZSTR_VAL(save_path);
++    size_t save_path_len = ZSTR_LEN(save_path);
+ #else
+     const char *save_path_str = save_path;
++    size_t save_path_len = strlen(save_path);
+ #endif
+ 
+     redis_pool *pool = ecalloc(1, sizeof(*pool));
+ 
+-    for (i = 0, j = 0, path_len = strlen(save_path_str); i < path_len; i = j + 1) {
++    for (i = 0, j = 0, path_len = save_path_len; i < path_len; i = j + 1) {
+         /* find beginning of url */
+         while ( i< path_len && (isspace(save_path_str[i]) || save_path_str[i] == ','))
+             i++;
+-- 
+2.55.0
+
+From c105e3cabf1b59527c0e8cab1c8eff7484ad1ccb Mon Sep 17 00:00:00 2001
+From: michael-grunder <michael.grunder@gmail.com>
+Date: Mon, 29 Jun 2026 12:53:56 -0700
+Subject: [PATCH 07/10] Fix PHP 8.6 builds
+
+* USe the new PHP 8.6 `zned_ini_<type>` helpers and define them in older
+  versions of PHP
+* Switch from `XtOffsetof` to `offsetof`
+* User `ZEND_UNREACHABLE` instead of `ZEND_EMPTY_SWITCH_CASE`
+
+(cherry picked from commit 78c1c690e94e88b7a9eb5c964e4c1aff51979c0f)
+---
+ cluster_library.h  |  2 +-
+ common.h           |  2 +-
+ library.c          | 22 ++++++++++++----------
+ redis.c            |  2 +-
+ redis_array.c      |  2 +-
+ redis_array_impl.c | 33 ++++++++++++++++-----------------
+ redis_cluster.c    | 14 +++++++-------
+ redis_session.c    | 34 +++++++++++++++++-----------------
+ sentinel_library.c |  2 +-
+ 9 files changed, 57 insertions(+), 56 deletions(-)
+
+diff --git a/cluster_library.h b/cluster_library.h
+index 361a1e5..817ecc2 100644
+--- a/cluster_library.h
++++ b/cluster_library.h
+@@ -121,7 +121,7 @@
+     mc.kw     = keyword; \
+     mc.kw_len = keyword_len; \
+ 
+-#define CLUSTER_CACHING_ENABLED() (INI_INT("redis.clusters.cache_slots") == 1)
++#define CLUSTER_CACHING_ENABLED() (zend_ini_long_literal("redis.clusters.cache_slots") == 1)
+ 
+ /* Cluster redirection enum */
+ typedef enum CLUSTER_REDIR_TYPE {
+diff --git a/common.h b/common.h
+index 8936c8e..2ede54c 100644
+--- a/common.h
++++ b/common.h
+@@ -13,7 +13,7 @@
+ #include <zend_smart_str.h>
+ #include <zend_smart_string.h>
+ 
+-#define PHPREDIS_GET_OBJECT(class_entry, o) (class_entry *)((char *)o - XtOffsetOf(class_entry, std))
++#define PHPREDIS_GET_OBJECT(class_entry, o) (class_entry *)((char *)o - offsetof(class_entry, std))
+ #define PHPREDIS_ZVAL_GET_OBJECT(class_entry, z) PHPREDIS_GET_OBJECT(class_entry, Z_OBJ_P(z))
+ 
+ /* We'll fallthrough if we want to */
+diff --git a/library.c b/library.c
+index e5870ed..ca0d08e 100644
+--- a/library.c
++++ b/library.c
+@@ -139,7 +139,7 @@ redis_sock_get_connection_pool(RedisSock *redis_sock)
+     zend_string *persistent_id;
+ 
+     /* Generate our unique pool id depending on configuration */
+-    persistent_id = redis_pool_spprintf(redis_sock, INI_STR("redis.pconnect.pool_pattern"));
++    persistent_id = redis_pool_spprintf(redis_sock, zend_ini_string_literal("redis.pconnect.pool_pattern"));
+ 
+     /* Return early if we can find the pool */
+     if ((le = zend_hash_find_ptr(&EG(persistent_list), persistent_id))) {
+@@ -898,7 +898,7 @@ static void append_auth_hash(smart_str *dst, zend_string *user, zend_string *pas
+ 
+ /* A printf like function to generate our connection pool hash value. */
+ PHP_REDIS_API zend_string *
+-redis_pool_spprintf(RedisSock *redis_sock, char *fmt, ...) {
++redis_pool_spprintf(RedisSock *redis_sock, const char *fmt, ...) {
+     smart_str str = {0};
+ 
+     smart_str_alloc(&str, 128, 0);
+@@ -3155,7 +3155,7 @@ static php_socket_t redis_stream_fd_for_select(php_stream *stream) {
+ }
+ 
+ static int redis_detect_dirty_config(void) {
+-    int val = INI_INT("redis.pconnect.pool_detect_dirty");
++    int val = zend_ini_long_literal("redis.pconnect.pool_detect_dirty");
+ 
+     if (val >= 0 && val <= 2)
+         return val;
+@@ -3166,7 +3166,7 @@ static int redis_detect_dirty_config(void) {
+ }
+ 
+ static int redis_pool_poll_timeout(void) {
+-    int val = INI_INT("redis.pconnect.pool_poll_timeout");
++    int val = zend_ini_long_literal("redis.pconnect.pool_poll_timeout");
+     if (val >= 0)
+         return val;
+ 
+@@ -3255,7 +3255,7 @@ redis_sock_check_liveness(RedisSock *redis_sock)
+         goto failure;
+ 
+     redis_sock->status = REDIS_SOCK_STATUS_CONNECTED;
+-    if (!INI_INT("redis.pconnect.echo_check_liveness")) {
++    if (!zend_ini_long_literal("redis.pconnect.echo_check_liveness")) {
+         return SUCCESS;
+     }
+ 
+@@ -3360,7 +3360,7 @@ PHP_REDIS_API int redis_sock_connect(RedisSock *redis_sock)
+     }
+ 
+     if (redis_sock->persistent) {
+-        if (INI_INT("redis.pconnect.pooling_enabled")) {
++        if (zend_ini_long_literal("redis.pconnect.pooling_enabled")) {
+             p = redis_sock_get_connection_pool(redis_sock);
+             if (zend_llist_count(&p->list) > 0) {
+                 redis_sock->stream = *(php_stream **)zend_llist_get_last(&p->list);
+@@ -3373,7 +3373,7 @@ PHP_REDIS_API int redis_sock_connect(RedisSock *redis_sock)
+                 p->nb_active--;
+             }
+ 
+-            int limit = INI_INT("redis.pconnect.connection_limit");
++            int limit = zend_ini_long_literal("redis.pconnect.connection_limit");
+             if (limit > 0 && p->nb_active >= limit) {
+                 redis_sock_set_err(redis_sock, ZEND_STRL("Connection limit reached"));
+                 return FAILURE;
+@@ -3487,7 +3487,7 @@ redis_sock_disconnect(RedisSock *redis_sock, int force, int is_reset_mode)
+     } else if (redis_sock->stream) {
+         if (redis_sock->persistent) {
+             ConnectionPool *p = NULL;
+-            if (INI_INT("redis.pconnect.pooling_enabled")) {
++            if (zend_ini_long_literal("redis.pconnect.pooling_enabled")) {
+                 p = redis_sock_get_connection_pool(redis_sock);
+             }
+             if (force || !IS_ATOMIC(redis_sock)) {
+@@ -4279,7 +4279,8 @@ redis_serialize(RedisSock *redis_sock, zval *z, char **val, size_t *val_len)
+             return 1;
+ #endif
+             break;
+-        EMPTY_SWITCH_DEFAULT_CASE()
++        default:
++            ZEND_UNREACHABLE();
+     }
+ 
+     return 0;
+@@ -4346,7 +4347,8 @@ redis_unserialize(RedisSock* redis_sock, const char *val, int val_len,
+             ret = !php_json_decode(z_ret, (char *)val, val_len, 1, PHP_JSON_PARSER_DEFAULT_DEPTH);
+ #endif
+             break;
+-        EMPTY_SWITCH_DEFAULT_CASE()
++        default:
++            ZEND_UNREACHABLE();
+     }
+ 
+     return ret;
+diff --git a/redis.c b/redis.c
+index 41e950f..2053f72 100644
+--- a/redis.c
++++ b/redis.c
+@@ -215,7 +215,7 @@ create_redis_object(zend_class_entry *ce)
+     object_properties_init(&redis->std, ce);
+ 
+     memcpy(&redis_object_handlers, zend_get_std_object_handlers(), sizeof(redis_object_handlers));
+-    redis_object_handlers.offset = XtOffsetOf(redis_object, std);
++    redis_object_handlers.offset = offsetof(redis_object, std);
+     redis_object_handlers.free_obj = free_redis_object;
+     redis_object_handlers.clone_obj = NULL;
+     redis->std.handlers = &redis_object_handlers;
+diff --git a/redis_array.c b/redis_array.c
+index ee4b8d7..15509c7 100644
+--- a/redis_array.c
++++ b/redis_array.c
+@@ -119,7 +119,7 @@ create_redis_array_object(zend_class_entry *ce)
+     object_properties_init(&obj->std, ce);
+ 
+     memcpy(&redis_array_object_handlers, zend_get_std_object_handlers(), sizeof(redis_array_object_handlers));
+-    redis_array_object_handlers.offset = XtOffsetOf(redis_array_object, std);
++    redis_array_object_handlers.offset = offsetof(redis_array_object, std);
+     redis_array_object_handlers.free_obj = free_redis_array_object;
+     redis_array_object_handlers.clone_obj = NULL;
+     obj->std.handlers = &redis_array_object_handlers;
+diff --git a/redis_array_impl.c b/redis_array_impl.c
+index 90e592f..43636c6 100644
+--- a/redis_array_impl.c
++++ b/redis_array_impl.c
+@@ -135,7 +135,7 @@ ra_find_name(const char *name) {
+     const char *ini_names, *p, *next;
+     /* php_printf("Loading redis array with name=[%s]\n", name); */
+ 
+-    ini_names = INI_STR("redis.arrays.names");
++    ini_names = zend_ini_string_literal("redis.arrays.names");
+     for(p = ini_names; p;) {
+         next = strchr(p, ',');
+         if(next) {
+@@ -168,7 +168,7 @@ RedisArray *ra_load_array(const char *name) {
+     double d_connect_timeout = 0, read_timeout = 0.0;
+     HashTable *hHosts = NULL, *hPrev = NULL;
+     size_t name_len = strlen(name);
+-    char *iptr;
++    const char *iptr;
+ 
+     /* find entry */
+     if(!ra_find_name(name))
+@@ -179,7 +179,7 @@ RedisArray *ra_load_array(const char *name) {
+ 
+     /* find hosts */
+     array_init(&z_params_hosts);
+-    if ((iptr = INI_STR("redis.arrays.hosts")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.hosts")) != NULL) {
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_params_hosts);
+         if ((z_data = zend_hash_str_find(Z_ARRVAL(z_params_hosts), name, name_len)) != NULL) {
+             hHosts = Z_ARRVAL_P(z_data);
+@@ -188,7 +188,7 @@ RedisArray *ra_load_array(const char *name) {
+ 
+     /* find previous hosts */
+     array_init(&z_params_prev);
+-    if ((iptr = INI_STR("redis.arrays.previous")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.previous")) != NULL) {
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_params_prev);
+         if ((z_data = zend_hash_str_find(Z_ARRVAL(z_params_prev), name, name_len)) != NULL) {
+             if (Z_TYPE_P(z_data) == IS_ARRAY) {
+@@ -198,7 +198,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find function */
+-    if ((iptr = INI_STR("redis.arrays.functions")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.functions")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zval(Z_ARRVAL(z_tmp), name, name_len, &z_fun, 1, 0);
+@@ -206,7 +206,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find distributor */
+-    if ((iptr = INI_STR("redis.arrays.distributor")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.distributor")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zval(Z_ARRVAL(z_tmp), name, name_len, &z_dist, 1, 0);
+@@ -214,7 +214,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find hash algorithm */
+-    if ((iptr = INI_STR("redis.arrays.algorithm")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.algorithm")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_string(Z_ARRVAL(z_tmp), name, name_len, &algorithm);
+@@ -222,7 +222,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find index option */
+-    if ((iptr = INI_STR("redis.arrays.index")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.index")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_index);
+@@ -230,7 +230,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find autorehash option */
+-    if ((iptr = INI_STR("redis.arrays.autorehash")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.autorehash")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_autorehash);
+@@ -238,7 +238,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find retry interval option */
+-    if ((iptr = INI_STR("redis.arrays.retryinterval")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.retryinterval")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_long(Z_ARRVAL(z_tmp), name, name_len, &l_retry_interval);
+@@ -246,7 +246,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find pconnect option */
+-    if ((iptr = INI_STR("redis.arrays.pconnect")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.pconnect")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_pconnect);
+@@ -254,7 +254,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find lazy connect option */
+-    if ((iptr = INI_STR("redis.arrays.lazyconnect")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.lazyconnect")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_zend_bool(Z_ARRVAL(z_tmp), name, name_len, &b_lazy_connect);
+@@ -262,7 +262,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find connect timeout option */
+-    if ((iptr = INI_STR("redis.arrays.connecttimeout")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.connecttimeout")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &d_connect_timeout);
+@@ -270,7 +270,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find read timeout option */
+-    if ((iptr = INI_STR("redis.arrays.readtimeout")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.readtimeout")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &read_timeout);
+@@ -278,7 +278,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find consistent option */
+-    if ((iptr = INI_STR("redis.arrays.consistent")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.consistent")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         if ((z_data = zend_hash_str_find(Z_ARRVAL(z_tmp), name, name_len)) != NULL) {
+@@ -289,7 +289,7 @@ RedisArray *ra_load_array(const char *name) {
+     }
+ 
+     /* find auth option */
+-    if ((iptr = INI_STR("redis.arrays.auth")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.arrays.auth")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_auth(Z_ARRVAL(z_tmp), name, name_len, &user, &pass);
+@@ -1218,4 +1218,3 @@ ra_rehash(RedisArray *ra, zend_fcall_info *z_cb, zend_fcall_info_cache *z_cb_cac
+         ra_rehash_server(ra, &ra->prev->redis[i], ra->prev->hosts[i], ra->index, z_cb, z_cb_cache);
+     }
+ }
+-
+diff --git a/redis_cluster.c b/redis_cluster.c
+index 59135be..ede7f1a 100644
+--- a/redis_cluster.c
++++ b/redis_cluster.c
+@@ -207,7 +207,7 @@ zend_object * create_cluster_context(zend_class_entry *class_type) {
+ 
+     object_properties_init(&cluster->std, class_type);
+     memcpy(&RedisCluster_handlers, zend_get_std_object_handlers(), sizeof(RedisCluster_handlers));
+-    RedisCluster_handlers.offset = XtOffsetOf(redisCluster, std);
++    RedisCluster_handlers.offset = offsetof(redisCluster, std);
+     RedisCluster_handlers.free_obj = free_cluster_context;
+     RedisCluster_handlers.clone_obj = NULL;
+ 
+@@ -282,12 +282,12 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+     zend_string *user = NULL, *pass = NULL;
+     double timeout = 0, read_timeout = 0;
+     int persistent = 0;
+-    char *iptr;
++    const char *iptr;
+     HashTable *ht_seeds = NULL;
+ 
+     /* Seeds */
+     array_init(&z_seeds);
+-    if ((iptr = INI_STR("redis.clusters.seeds")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.clusters.seeds")) != NULL) {
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_seeds);
+     }
+     if ((z_value = zend_hash_str_find(Z_ARRVAL(z_seeds), name, name_len)) != NULL) {
+@@ -299,7 +299,7 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+     }
+ 
+     /* Connection timeout */
+-    if ((iptr = INI_STR("redis.clusters.timeout")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.clusters.timeout")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &timeout);
+@@ -307,7 +307,7 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+     }
+ 
+     /* Read timeout */
+-    if ((iptr = INI_STR("redis.clusters.read_timeout")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.clusters.read_timeout")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_double(Z_ARRVAL(z_tmp), name, name_len, &read_timeout);
+@@ -315,14 +315,14 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len) {
+     }
+ 
+     /* Persistent connections */
+-    if ((iptr = INI_STR("redis.clusters.persistent")) != NULL) {
++    if ((iptr = zend_ini_string_literal("redis.clusters.persistent")) != NULL) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_bool(Z_ARRVAL(z_tmp), name, name_len, &persistent);
+         zval_ptr_dtor_nogc(&z_tmp);
+     }
+ 
+-    if ((iptr = INI_STR("redis.clusters.auth"))) {
++    if ((iptr = zend_ini_string_literal("redis.clusters.auth"))) {
+         array_init(&z_tmp);
+         sapi_module.treat_data(PARSE_STRING, estrdup(iptr), &z_tmp);
+         redis_conf_auth(Z_ARRVAL(z_tmp), name, name_len, &user, &pass);
+diff --git a/redis_session.c b/redis_session.c
+index de67588..80c806e 100644
+--- a/redis_session.c
++++ b/redis_session.c
+@@ -132,7 +132,7 @@ redis_pool_free(redis_pool *pool) {
+ 
+ /* Retrieve session.gc_maxlifetime from php.ini protecting against an integer overflow */
+ static int session_gc_maxlifetime(void) {
+-    zend_long value = INI_INT("session.gc_maxlifetime");
++    zend_long value = zend_ini_long_literal("session.gc_maxlifetime");
+     if (value > INT_MAX) {
+         php_error_docref(NULL, E_NOTICE, "session.gc_maxlifetime overflows INT_MAX, truncating.");
+         return INT_MAX;
+@@ -146,7 +146,7 @@ static int session_gc_maxlifetime(void) {
+ 
+ /* Retrieve redis.session.compression from php.ini */
+ static int session_compression_type(void) {
+-    const char *compression = INI_STR("redis.session.compression");
++    const char *compression = zend_ini_string_literal("redis.session.compression");
+     if(compression == NULL || *compression == '\0' || strncasecmp(compression, "none", sizeof("none") - 1) == 0) {
+         return REDIS_COMPRESSION_NONE;
+     }
+@@ -270,25 +270,25 @@ static int lock_acquire(RedisSock *redis_sock, redis_session_lock_status *lock_s
+     int cmd_len, lock_wait_time, retries, i, set_lock_key_result, expiry;
+ 
+     /* Short circuit if we are already locked or not using session locks */
+-    if (lock_status->is_locked || !INI_INT("redis.session.locking_enabled"))
++    if (lock_status->is_locked || !zend_ini_long_literal("redis.session.locking_enabled"))
+         return SUCCESS;
+ 
+     /* How long to wait between attempts to acquire lock */
+-    lock_wait_time = INI_INT("redis.session.lock_wait_time");
++    lock_wait_time = zend_ini_long_literal("redis.session.lock_wait_time");
+     if (lock_wait_time == 0) {
+         lock_wait_time = 20000;
+     }
+ 
+     /* Maximum number of times to retry (-1 means infinite) */
+-    retries = INI_INT("redis.session.lock_retries");
++    retries = zend_ini_long_literal("redis.session.lock_retries");
+     if (retries == 0) {
+         retries = 100;
+     }
+ 
+     /* How long should the lock live (in seconds) */
+-    expiry = INI_INT("redis.session.lock_expire");
++    expiry = zend_ini_long_literal("redis.session.lock_expire");
+     if (expiry == 0) {
+-        expiry = INI_INT("max_execution_time");
++        expiry = zend_ini_long_literal("max_execution_time");
+     }
+ 
+     /* Generate our qualified lock key */
+@@ -340,13 +340,13 @@ static int lock_acquire(RedisSock *redis_sock, redis_session_lock_status *lock_s
+ #define IS_LOCK_SECRET(reply, len, secret) (len == ZSTR_LEN(secret) && !redis_strncmp(reply, ZSTR_VAL(secret), len))
+ static int write_allowed(RedisSock *redis_sock, redis_session_lock_status *lock_status)
+ {
+-    if (!INI_INT("redis.session.locking_enabled")) {
++    if (!zend_ini_long_literal("redis.session.locking_enabled")) {
+         return 1;
+     }
+     /* If locked and redis.session.lock_expire is not set => TTL=max_execution_time
+        Therefore it is guaranteed that the current process is still holding the lock */
+ 
+-    if (lock_status->is_locked && INI_INT("redis.session.lock_expire") != 0) {
++    if (lock_status->is_locked && zend_ini_long_literal("redis.session.lock_expire") != 0) {
+         char *cmd, *reply = NULL;
+         int replylen, cmdlen;
+         /* Command to get our lock key value and compare secrets */
+@@ -545,7 +545,7 @@ PS_OPEN_FUNC(redis)
+             }
+ 
+             redis_sock->compression = session_compression_type();
+-            redis_sock->compression_level = INI_INT("redis.session.compression_level");
++            redis_sock->compression_level = zend_ini_long_literal("redis.session.compression_level");
+ 
+             if (Z_TYPE(context) == IS_ARRAY) {
+                 redis_sock_set_stream_context(redis_sock, &context);
+@@ -718,7 +718,7 @@ PS_UPDATE_TIMESTAMP_FUNC(redis)
+     if (!skeylen) return FAILURE;
+ 
+     /* No need to update the session timestamp if we've already done so */
+-    if (INI_INT("redis.session.early_refresh")) {
++    if (zend_ini_long_literal("redis.session.early_refresh")) {
+         return SUCCESS;
+     }
+ 
+@@ -777,7 +777,7 @@ PS_READ_FUNC(redis)
+     pool->lock_status.session_key = redis_session_key(redis_sock, skey, skeylen);
+ 
+     /* Update the session ttl if early refresh is enabled */
+-    if (INI_INT("redis.session.early_refresh")) {
++    if (zend_ini_long_literal("redis.session.early_refresh")) {
+         cmd_len = REDIS_SPPRINTF(&cmd, "GETEX", "Ssd", pool->lock_status.session_key,
+                                  "EX", 2, session_gc_maxlifetime());
+     } else {
+@@ -785,7 +785,7 @@ PS_READ_FUNC(redis)
+     }
+ 
+     if (lock_acquire(redis_sock, &pool->lock_status) != SUCCESS) {
+-        if (INI_INT("redis.session.lock_failure_readonly")) {
++        if (zend_ini_long_literal("redis.session.lock_failure_readonly")) {
+             // opt-in legacy behavior: readonly session
+             php_error_docref(NULL, E_WARNING, "Failed to acquire session lock, session will be read only");
+         } else {
+@@ -1038,7 +1038,7 @@ PS_OPEN_FUNC(rediscluster) {
+     }
+ 
+     c->flags->compression = session_compression_type();
+-    c->flags->compression_level = INI_INT("redis.session.compression_level");
++    c->flags->compression_level = zend_ini_long_literal("redis.session.compression_level");
+ 
+     redis_sock_set_auth(c->flags, user, pass);
+ 
+@@ -1091,7 +1091,7 @@ PS_CREATE_SID_FUNC(rediscluster)
+         return php_session_create_id(NULL);
+     }
+ 
+-    if (INI_INT("session.use_strict_mode") == 0) {
++    if (zend_ini_long_literal("session.use_strict_mode") == 0) {
+         return php_session_create_id((void **) &c);
+     }
+ 
+@@ -1200,7 +1200,7 @@ PS_UPDATE_TIMESTAMP_FUNC(rediscluster) {
+     short slot;
+ 
+     /* No need to update the session timestamp if we've already done so */
+-    if (INI_INT("redis.session.early_refresh")) {
++    if (zend_ini_long_literal("redis.session.early_refresh")) {
+         return SUCCESS;
+     }
+ 
+@@ -1249,7 +1249,7 @@ PS_READ_FUNC(rediscluster) {
+     skey = cluster_session_key(c, ZSTR_VAL(key), ZSTR_LEN(key), &skeylen, &slot);
+ 
+     /* Update the session ttl if early refresh is enabled */
+-    if (INI_INT("redis.session.early_refresh")) {
++    if (zend_ini_long_literal("redis.session.early_refresh")) {
+         cmdlen = redis_spprintf(NULL, NULL, &cmd, "GETEX", "ssd", skey,
+                                 skeylen, "EX", 2, session_gc_maxlifetime());
+         c->readonly = 0;
+diff --git a/sentinel_library.c b/sentinel_library.c
+index bed1aca..8411cad 100644
+--- a/sentinel_library.c
++++ b/sentinel_library.c
+@@ -23,7 +23,7 @@ create_sentinel_object(zend_class_entry *ce)
+     object_properties_init(&obj->std, ce);
+ 
+     memcpy(&redis_sentinel_object_handlers, zend_get_std_object_handlers(), sizeof(redis_sentinel_object_handlers));
+-    redis_sentinel_object_handlers.offset = XtOffsetOf(redis_sentinel_object, std);
++    redis_sentinel_object_handlers.offset = offsetof(redis_sentinel_object, std);
+     redis_sentinel_object_handlers.free_obj = free_redis_sentinel_object;
+     obj->std.handlers = &redis_sentinel_object_handlers;
+ 
+-- 
+2.55.0
+
+From 51b75124cc793caf06a02b69a9ed95f7c69c6fdd Mon Sep 17 00:00:00 2001
+From: Remi Collet <remi@remirepo.net>
+Date: Thu, 23 Jul 2026 16:23:59 +0200
+Subject: [PATCH 08/10] Use zend_bin2hex
+
+---
+ library.c | 4 ++++
+ library.h | 2 +-
+ redis.c   | 4 ++++
+ 3 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/library.c b/library.c
+index ca0d08e..99228cf 100644
+--- a/library.c
++++ b/library.c
+@@ -876,7 +876,11 @@ static zend_string *redis_hash_auth(zend_string *user, zend_string *pass) {
+     efree(ctx);
+ 
+     hex = zend_string_safe_alloc(ops->digest_size, 2, 0, 0);
++#if PHP_VERSION_ID < 80600
+     php_hash_bin2hex(ZSTR_VAL(hex), digest, ops->digest_size);
++#else
++    zend_bin2hex(ZSTR_VAL(hex), digest, ops->digest_size);
++#endif
+     ZSTR_VAL(hex)[2 * ops->digest_size] = 0;
+ 
+     efree(digest);
+diff --git a/library.h b/library.h
+index b39fcb6..8989f98 100644
+--- a/library.h
++++ b/library.h
+@@ -63,7 +63,7 @@ int redis_cmd_append_sstr_key_long(smart_string *dst, zend_long lval, RedisSock
+ int redis_cmd_append_sstr_arrkey(smart_string *cmd, zend_string *kstr, zend_ulong idx);
+ 
+ PHP_REDIS_API int redis_spprintf(RedisSock *redis_sock, short *slot, char **ret, char *kw, char *fmt, ...);
+-PHP_REDIS_API zend_string *redis_pool_spprintf(RedisSock *redis_sock, char *fmt, ...);
++PHP_REDIS_API zend_string *redis_pool_spprintf(RedisSock *redis_sock, const char *fmt, ...);
+ 
+ PHP_REDIS_API char *redis_sock_read(RedisSock *redis_sock, int *buf_len);
+ PHP_REDIS_API int redis_sock_gets(RedisSock *redis_sock, char *buf, int buf_size, size_t* line_len);
+diff --git a/redis.c b/redis.c
+index 2053f72..574f823 100644
+--- a/redis.c
++++ b/redis.c
+@@ -330,7 +330,11 @@ static void redis_random_hex_bytes(char *dst, size_t dstsize) {
+ 
+     /* First try to have PHP generate the bytes */
+     if (php_random_bytes_silent(ZSTR_VAL(s), bytes) == SUCCESS) {
++#if PHP_VERSION_ID < 80600
+         php_hash_bin2hex(dst, (unsigned char *)ZSTR_VAL(s), bytes);
++#else
++        zend_bin2hex(dst, (unsigned char *)ZSTR_VAL(s), bytes);
++#endif
+         zend_string_release(s);
+         return;
+     }
+-- 
+2.55.0
+
+From 3b0c0d3e328e13638ff0ad7943421d96c844b0c3 Mon Sep 17 00:00:00 2001
+From: michael-grunder <michael.grunder@gmail.com>
+Date: Sat, 25 Jul 2026 15:18:30 -0700
+Subject: [PATCH 09/10] Fix session handlers for php 8.6.0
+
+PHP 8.6 is making session strict mode the default. This slightly changes
+the semantics around session ids.
+
+This fix mostly just allows us to disable strict mode for our tests
+which need to use their own ids to confirm locking functionality.
+
+Also we add some logic to the session handlers to keep track of if we
+need to generate an ID which should allow us to preserve lazy write
+semantics.
+
+Fixes #2898
+
+(cherry picked from commit f5460cc2510d10bc85514ef2744ba6ed5969f5e5)
+---
+ cluster_library.h        |  3 +++
+ redis_session.c          | 47 ++++++++++++++++++++++++++++------------
+ tests/SessionHelpers.php | 11 +++++++++-
+ tests/startSession.php   |  6 ++++-
+ 4 files changed, 51 insertions(+), 16 deletions(-)
+
+diff --git a/cluster_library.h b/cluster_library.h
+index 817ecc2..bf6bdf1 100644
+--- a/cluster_library.h
++++ b/cluster_library.h
+@@ -191,6 +191,9 @@ typedef struct redisCluster {
+     /* RedisCluster failover options (never, on error, to load balance) */
+     short failover;
+ 
++    /* Whether the current session read found no backing key */
++    zend_bool session_key_missing;
++
+     /* Hash table of seed host/ports */
+     HashTable *seeds;
+ 
+diff --git a/redis_session.c b/redis_session.c
+index 80c806e..7696fac 100644
+--- a/redis_session.c
++++ b/redis_session.c
+@@ -85,7 +85,7 @@ typedef struct {
+ 
+     redis_pool_member *head;
+     redis_session_lock_status lock_status;
+-
++    zend_bool session_key_missing;
+ } redis_pool;
+ 
+ // static char *session_conf_string(HashTable *ht, const char *key, size_t keylen) {
+@@ -711,18 +711,22 @@ PS_UPDATE_TIMESTAMP_FUNC(redis)
+ {
+     char *cmd, *response;
+     int cmd_len, response_len;
++    zend_bool res, missing;
+ 
+     const char *skey = ZSTR_VAL(key);
+     size_t skeylen = ZSTR_LEN(key);
+ 
+     if (!skeylen) return FAILURE;
+ 
+-    /* No need to update the session timestamp if we've already done so */
+-    if (zend_ini_long_literal("redis.session.early_refresh")) {
++    redis_pool *pool = PS_GET_MOD_DATA();
++
++    /* GETEX already refreshed an existing session during the read */
++    if (zend_ini_long_literal("redis.session.early_refresh") &&
++        !pool->session_key_missing
++    ) {
+         return SUCCESS;
+     }
+ 
+-    redis_pool *pool = PS_GET_MOD_DATA();
+     redis_pool_member *rpm = redis_pool_get_sock(pool, skey);
+     RedisSock *redis_sock = rpm ? rpm->redis_sock : NULL;
+     if (!redis_sock) {
+@@ -743,13 +747,16 @@ PS_UPDATE_TIMESTAMP_FUNC(redis)
+ 
+     efree(cmd);
+ 
+-    if (response_len == 2 && response[0] == ':') {
+-        efree(response);
+-        return SUCCESS;
+-    } else {
+-        efree(response);
+-        return FAILURE;
++    res = response_len == 2 && response[0] == ':';
++    missing = res && response[1] == '0';
++
++    efree(response);
++
++    if (missing) {
++        return ps_write_redis(mod_data, key, val, maxlifetime);
+     }
++
++    return res ? SUCCESS : FAILURE;
+ }
+ /* }}} */
+ 
+@@ -811,7 +818,9 @@ PS_READ_FUNC(redis)
+         return FAILURE;
+     }
+ 
+-    if (resp_len < 0) {
++    pool->session_key_missing = resp_len < 0;
++
++    if (pool->session_key_missing) {
+         *val = ZSTR_EMPTY_ALLOC();
+     } else {
+         compressed_free = session_uncompress_data(redis_sock, resp, resp_len, &compressed_buf, &compressed_len);
+@@ -1199,8 +1208,10 @@ PS_UPDATE_TIMESTAMP_FUNC(rediscluster) {
+     int cmdlen, skeylen;
+     short slot;
+ 
+-    /* No need to update the session timestamp if we've already done so */
+-    if (zend_ini_long_literal("redis.session.early_refresh")) {
++    /* GETEX already refreshed an existing session during the read */
++    if (zend_ini_long_literal("redis.session.early_refresh") &&
++        !c->session_key_missing
++    ) {
+         return SUCCESS;
+     }
+ 
+@@ -1228,9 +1239,15 @@ PS_UPDATE_TIMESTAMP_FUNC(rediscluster) {
+         return FAILURE;
+     }
+ 
++    zend_bool missing = reply->type == TYPE_INT && reply->integer == 0;
++
+     /* Clean up */
+     cluster_free_reply(reply, 1);
+ 
++    if (missing) {
++        return ps_write_rediscluster(mod_data, key, val, maxlifetime);
++    }
++
+     return SUCCESS;
+ }
+ /* }}} */
+@@ -1277,7 +1294,9 @@ PS_READ_FUNC(rediscluster) {
+     }
+ 
+     /* Push reply value to caller */
+-    if (reply->str == NULL) {
++    c->session_key_missing = reply->len == -1;
++
++    if (c->session_key_missing) {
+         *val = ZSTR_EMPTY_ALLOC();
+     } else {
+         compressed_free = session_uncompress_data(c->flags, reply->str, reply->len, &compressed_buf, &compressed_len);
+diff --git a/tests/SessionHelpers.php b/tests/SessionHelpers.php
+index c2fa120..aa42746 100644
+--- a/tests/SessionHelpers.php
++++ b/tests/SessionHelpers.php
+@@ -77,6 +77,8 @@ class Runner {
+         'data' => '',
+         'lifetime' => 1440,
+         'compression' => 'none',
++        'strict-mode' => false,
++        'early-refresh' => false,
+     ];
+ 
+     private $prefix = NULL;
+@@ -174,6 +176,14 @@ class Runner {
+         return $this->set('compression', $compression);
+     }
+ 
++    public function strictMode(bool $enabled): self {
++        return $this->set('strict-mode', $enabled);
++    }
++
++    public function earlyRefresh(bool $enabled): self {
++        return $this->set('early-refresh', $enabled);
++    }
++
+     protected function validateArgs(array $required) {
+         foreach ($required as $req) {
+             if ( ! isset($this->args[$req]) || $this->args[$req] === null)
+@@ -242,7 +252,6 @@ class Runner {
+ 
+     public function output(?int $timeout = NULL): ?string {
+         if ($this->output) {
+-            var_dump("early return");
+             return $this->output;
+         }
+ 
+diff --git a/tests/startSession.php b/tests/startSession.php
+index b4e34a9..f1a3870 100644
+--- a/tests/startSession.php
++++ b/tests/startSession.php
+@@ -4,7 +4,7 @@ error_reporting(E_ERROR | E_WARNING);
+ $opt = getopt('', [
+     'handler:', 'save-path:', 'id:', 'sleep:', 'max-execution-time:' ,
+     'locking-enabled:', 'lock-wait-time:', 'lock-retries:', 'lock-expires:',
+-    'data:', 'lifetime:', 'compression:'
++    'data:', 'lifetime:', 'compression:', 'strict-mode:', 'early-refresh:'
+ ]);
+ 
+ $handler = $opt['handler'] ?? NULL;
+@@ -19,6 +19,8 @@ $lifetime = $opt['lifetime'] ?? 0;
+ $locking_enabled = $opt['locking-enabled'] ?? NULL;
+ $lock_wait_time = $opt['lock-wait-time'] ?? 0;
+ $compression = $opt['compression'] ?? NULL;
++$strict_mode = !!($opt['strict-mode'] ?? false);
++$early_refresh = !!($opt['early-refresh'] ?? false);
+ 
+ if ( ! $handler) {
+     fprintf(STDERR, "--handler is required\n");
+@@ -37,6 +39,8 @@ ini_set('session.gc_maxlifetime', $lifetime);
+ ini_set("{$handler}.session.locking_enabled", $locking_enabled);
+ ini_set("{$handler}.session.lock_wait_time", $lock_wait_time);
+ ini_set('redis.session.compression', $compression);
++ini_set('session.use_strict_mode', $strict_mode);
++ini_set('redis.session.early_refresh', $early_refresh);
+ 
+ session_id($id);
+ $status = session_start();
+-- 
+2.55.0
+
+From d8519dde53690fde303de8ebd71063d8ec5c77cb Mon Sep 17 00:00:00 2001
+From: Remi Collet <remi@remirepo.net>
+Date: Tue, 28 Jul 2026 07:54:02 +0200
+Subject: [PATCH 10/10] missing compat macro
+
+---
+ library.h | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/library.h b/library.h
+index 8989f98..0fb127a 100644
+--- a/library.h
++++ b/library.h
+@@ -38,6 +38,19 @@
+     #define REDIS_VALUE_EXCEPTION(m) zend_value_error(m)
+ #endif
+ 
++#if PHP_VERSION_ID < 80600
++#define zend_ini_bool_literal(name) \
++    zend_ini_parse_bool(zend_ini_str((name), sizeof("" name) - 1, 0))
++#define zend_ini_long_literal(name) \
++    zend_ini_long((name), sizeof("" name) - 1, 0)
++#define zend_ini_double_literal(name) \
++    zend_ini_double((name), sizeof("" name) - 1, 0)
++#define zend_ini_str_literal(name) \
++    zend_ini_str((name), sizeof("" name) - 1, 0)
++#define zend_ini_string_literal(name) \
++    zend_ini_string((name), sizeof("" name) - 1, 0)
++#endif
++
+ 
+ void redis_register_persistent_resource(zend_string *id, void *ptr, int le_id);
+ fold_item* redis_add_reply_callback(RedisSock *redis_sock);
+-- 
+2.55.0
+
