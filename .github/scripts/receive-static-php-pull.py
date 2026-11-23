@@ -40,8 +40,11 @@ def digest(path):
     return result.hexdigest()
 
 
-def validate_request(info):
-    assert set(info) == {'run_id', 'artifact_id', 'sha256', 'size', 'expected_packages', 'versions', 'download_url'}
+def validate_request(info, *, local_bundle=False):
+    fields = {'run_id', 'artifact_id', 'sha256', 'size', 'expected_packages', 'versions'}
+    if not local_bundle:
+        fields.add('download_url')
+    assert set(info) == fields
     assert all(type(info[key]) is int and 0 < info[key] < 10 ** 14 for key in ('run_id', 'artifact_id'))
     assert re.fullmatch('[a-f0-9]{64}', info['sha256'])
     assert type(info['size']) is int and 0 < info['size'] <= LIMIT
@@ -51,6 +54,8 @@ def validate_request(info):
     assert info['expected_packages'] in (4 * len(branches), 6 * len(branches))
     for branch, version in info['versions'].items():
         assert re.fullmatch(re.escape(branch) + r'\.\d+', version)
+    if local_bundle:
+        return
     url = urlsplit(info['download_url'])
     assert url.scheme == 'https' and not url.username and not url.password and url.port in (None, 443)
     assert re.fullmatch(r'productionresults[a-z0-9]+\.blob\.core\.windows\.net', url.hostname or '')
@@ -160,12 +165,12 @@ def verify_files(root, info, bases):
             assert tuple(map(int, previous.split('.'))) <= tuple(map(int, meta['php_version'].split('.'))), 'Refusing PHP downgrade'
 
 
-def main():
-    payload = sys.stdin.read(65537)
-    assert len(payload) <= 65536
-    info = json.loads(payload)
-    validate_request(info)
+def publish_release(info, local_bundle=None):
+    # The SSH receiver always downloads over HTTPS. Administrators can supply
+    # the same verified artifact through the local function when transport fails.
+    validate_request(info, local_bundle=local_bundle is not None)
     bases, files = expected_files(info)
+    executables = {f'php{branch}{suffix}' for branch in info['versions'] for suffix in ('', '.micro.sfx')}
     BACKUPS.mkdir(mode=0o700, exist_ok=True)
     with (BACKUPS / '.publish.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -173,7 +178,10 @@ def main():
         with tempfile.TemporaryDirectory(prefix='.incoming-', dir=BACKUPS) as temporary:
             stage = Path(temporary)
             archive = stage / 'release.zip'
-            download(info, archive)
+            if local_bundle is None:
+                download(info, archive)
+            else:
+                shutil.copyfile(local_bundle, archive)
             assert archive.stat().st_size == info['size'] and digest(archive) == info['sha256'], 'Artifact checksum mismatch'
             unpack(archive, stage, files)
             verify_files(stage, info, bases)
@@ -183,12 +191,18 @@ def main():
             # Metadata last: weekly checks cannot declare completion before binaries land.
             for name in sorted(files, key=lambda value: (value.endswith('.json'), value.endswith('.sha256'), value)):
                 path = stage / name
-                path.chmod(0o755 if re.fullmatch(r'php8\.[2-5](\.micro\.sfx)?', name) else 0o644)
+                path.chmod(0o755 if name in executables else 0o644)
                 os.replace(path, PUBLIC / name)
             ledger = {key: value for key, value in info.items() if key != 'download_url'}
             ledger['backup'] = str(backup)
             (BACKUPS / ('published-' + str(info['run_id']) + '.json')).write_text(json.dumps(ledger, indent=2) + '\n')
             print(f'Published {len(bases)} PHP packages / {len(files)} files; backup: {backup}', flush=True)
+
+
+def main():
+    payload = sys.stdin.read(65537)
+    assert len(payload) <= 65536
+    publish_release(json.loads(payload))
 
 
 if __name__ == '__main__':

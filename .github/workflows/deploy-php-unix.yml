@@ -70,7 +70,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.source-run-id }}
-          pattern: php-*
+          pattern: ${{ inputs.php-branch && format('php-{0}-*', inputs.php-branch) || 'php-*' }}
           path: release/
           merge-multiple: true
       - name: Verify all archives

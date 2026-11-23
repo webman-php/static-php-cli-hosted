@@ -41,6 +41,15 @@ class PullBoundaryTests(unittest.TestCase):
             with self.subTest(versions=versions, count=count), self.assertRaises(AssertionError):
                 receiver.validate_request(dict(self.manifest(), versions=versions, expected_packages=count))
 
+    def test_local_bundle_manifest_has_no_transport_fields(self):
+        info = self.manifest()
+        del info['download_url']
+        receiver.validate_request(info, local_bundle=True)
+        with self.assertRaises(AssertionError):
+            receiver.validate_request(info)
+        with self.assertRaises(AssertionError):
+            receiver.validate_request(dict(info, local_bundle='/tmp/release.zip'))
+
     def test_reject_ssrf_and_host_spoofing(self):
         for url in ('http://productionresultssa15.blob.core.windows.net/actions-results/a.zip',
                     'https://127.0.0.1/actions-results/a.zip',
