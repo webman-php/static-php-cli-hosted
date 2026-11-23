@@ -12,7 +12,7 @@ import time
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from php_binary import current_jit_profile
+from php_binary import current_jit_profile, verify_runtime
 from php_releases import MANIFEST, validate_manifest
 
 base = 'https://download.workerman.net/php/'
@@ -50,6 +50,7 @@ with tempfile.TemporaryDirectory(prefix='published-php-jit-') as temporary:
         cli = root / ('php' + branch)
         cli.write_bytes(binary)
         cli.chmod(0o755)
+        verify_runtime(cli, version)
         cli_report = results / (branch + '-cli.json')
         profile = ['--without-swoole'] if branch == '8.6' else []
         subprocess.run(['python3', str(Path(__file__).with_name('run_checks.py')), '--php', str(cli),
