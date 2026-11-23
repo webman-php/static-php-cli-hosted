@@ -1,22 +1,22 @@
 [
   {
     "branch": "8.2",
-    "version": "8.2.35",
-    "sha256": "9db4204f0a2d1911277ae832185e07bb4c3b3559772753a70d2968ca346d6910"
+    "version": "8.2.36",
+    "sha256": "c871dbdc1cd3d898e48632c8b5fcc73f1b0e1cbb15ef816579ced7f2ae1696a8"
   },
   {
     "branch": "8.3",
-    "version": "8.3.36",
-    "sha256": "c93f3441f87f6ab156bef4432db215d7e61ca2c0183bb3a2aa28d9886ab59f53"
+    "version": "8.3.37",
+    "sha256": "cdd2ed867cb104ececff7c0292142c807c68a6b6da1b114ead4d586fba628a4f"
   },
   {
     "branch": "8.4",
-    "version": "8.4.27",
-    "sha256": "5bafed9994c1a49796b25b5f61c22c9183bfe046b6acc7b363842d03c77f972f"
+    "version": "8.4.28",
+    "sha256": "deffc88c60fcfb99f683a9f6689e9c91cf41b7cba50bd5f01a232a98c27f2cd4"
   },
   {
     "branch": "8.5",
-    "version": "8.5.12",
-    "sha256": "81a0f450349e84b08eb43faa85f8a4c835684f3cc1c50471775d1317a046c525"
+    "version": "8.5.13",
+    "sha256": "3aeb20a7e667e197929747f76047409196f91f0172357439319cba344df8b3e1"
   }
 ]
