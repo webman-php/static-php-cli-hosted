@@ -56,8 +56,10 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SPC_TARGET: ${{ matrix.target.triple }}
-      # Use the traditional VM for the release JIT profile on PHP 8.5 and 8.6.
-      SPC_EXTRA_PHP_VARS: ${{ (matrix.php.branch == '8.5' || matrix.php.branch == '8.6') && 'php_cv_preserve_none=no' || '' }}
+      # Zig can expose the epoll_pwait2 declaration even when glibc 2.17 lacks the symbol.
+      SPC_EXTRA_PHP_VARS: >-
+        ${{ (matrix.php.branch == '8.5' || matrix.php.branch == '8.6') && 'php_cv_preserve_none=no' || '' }}
+        ${{ (matrix.php.branch == '8.6' && matrix.target.suffix == '-glibc') && 'ac_cv_func_epoll_pwait2=no ac_cv_have_decl_epoll_pwait2=no' || '' }}
     runs-on: ${{ matrix.target.runner }}
     timeout-minutes: 240
     strategy:
