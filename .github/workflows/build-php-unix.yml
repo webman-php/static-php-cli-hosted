@@ -124,6 +124,9 @@ jobs:
           echo '${{ matrix.php.sha256 }}  downloads/php-${{ matrix.php.version }}.tar.gz' | shasum -a 256 -c -
 
       - name: Build CLI and micro
+        env:
+          # Keep compiling other extensions after an error in validation builds.
+          MAKEFLAGS: ${{ inputs.validation-only && '--keep-going' || '' }}
         run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
 
       - name: Verify actual JIT code generation and coroutine behavior
