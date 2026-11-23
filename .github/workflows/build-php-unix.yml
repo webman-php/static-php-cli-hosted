@@ -56,7 +56,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SPC_TARGET: ${{ matrix.target.triple }}
-      # Keep JIT with Swoole using the traditional VM on PHP 8.5 and 8.6.
+      # Use the traditional VM for the release JIT profile on PHP 8.5 and 8.6.
       SPC_EXTRA_PHP_VARS: ${{ (matrix.php.branch == '8.5' || matrix.php.branch == '8.6') && 'php_cv_preserve_none=no' || '' }}
     runs-on: ${{ matrix.target.runner }}
     timeout-minutes: 240
@@ -81,6 +81,19 @@ jobs:
 
       - name: Apply Swoole JIT and PHP 8.6 static extension compatibility
         run: python3 .release-tools/.github/jit/apply_spc_profile.py --profile stdext-off
+
+      - name: Select the PHP 8.6 extension profile
+        if: matrix.php.branch == '8.6'
+        run: |
+          IFS=, read -r -a extensions <<< "$EXTENSIONS"
+          selected=(pdo_pgsql pdo_sqlite)
+          for extension in "${extensions[@]}"; do
+            case "$extension" in
+              swoole|swoole-hook-*) ;;
+              *) selected+=("$extension");;
+            esac
+          done
+          (IFS=,; echo "EXTENSIONS=${selected[*]}") >> "$GITHUB_ENV"
 
       - name: Setup build runtime
         uses: shivammathur/setup-php@v2
@@ -141,10 +154,10 @@ jobs:
         run: bin/spc build:php "$EXTENSIONS" --build-cli --build-micro --no-download --dl-with-php=${{ matrix.php.version }}
 
       - name: Verify actual JIT code generation and coroutine behavior
-        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-unpacked.json
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-unpacked.json ${{ matrix.php.branch == '8.6' && '--without-swoole' || '' }}
 
       - name: Check the tracing JIT regression with Swoole
-        if: matrix.php.branch == '8.5' || matrix.php.branch == '8.6'
+        if: matrix.php.branch == '8.5'
         run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --fixture .release-tools/.github/jit/repro-php85-jit.php --jit-modes tracing --expect-jit yes --output validation/jit-original-repro.json
 
       - name: Verify unpacked binaries contain no intl, ICU or oversized payload
@@ -163,11 +176,11 @@ jobs:
 
       - name: Verify Linux JIT after UPX packing
         if: matrix.target.os == 'linux'
-        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-packed.json
+        run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-packed.json ${{ matrix.php.branch == '8.6' && '--without-swoole' || '' }}
 
-      - name: Verify published micro coroutine behavior
+      - name: Verify published micro defaults and runtime behavior
         if: matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
-        run: python3 .release-tools/.github/jit/run_micro_checks.py --micro buildroot/bin/micro.sfx --output validation/micro-defaults.json
+        run: python3 .release-tools/.github/jit/run_micro_checks.py --micro buildroot/bin/micro.sfx --output validation/micro-defaults.json ${{ matrix.php.branch == '8.6' && '--without-swoole' || '' }}
 
       - name: Verify and package
         env:

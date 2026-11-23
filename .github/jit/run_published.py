@@ -51,10 +51,11 @@ with tempfile.TemporaryDirectory(prefix='published-php-jit-') as temporary:
         cli.write_bytes(binary)
         cli.chmod(0o755)
         cli_report = results / (branch + '-cli.json')
+        profile = ['--without-swoole'] if branch == '8.6' else []
         subprocess.run(['python3', str(Path(__file__).with_name('run_checks.py')), '--php', str(cli),
-                        '--expect-jit', 'yes', '--output', str(cli_report)], check=True)
+                        '--expect-jit', 'yes', '--output', str(cli_report), *profile], check=True)
         assert json.loads(cli_report.read_text())['tracing']['php'] == version
-        if branch in ('8.5', '8.6'):
+        if branch == '8.5':
             subprocess.run(['python3', str(Path(__file__).with_name('run_checks.py')), '--php', str(cli),
                             '--fixture', str(Path(__file__).with_name('repro-php85-jit.php')),
                             '--jit-modes', 'tracing', '--expect-jit', 'yes',
@@ -66,6 +67,6 @@ with tempfile.TemporaryDirectory(prefix='published-php-jit-') as temporary:
         micro.write_bytes(micro_data)
         micro_report = results / (branch + '-micro.json')
         subprocess.run(['python3', str(Path(__file__).with_name('run_micro_checks.py')), '--micro', str(micro),
-                        '--output', str(micro_report)], check=True)
+                        '--output', str(micro_report), *profile], check=True)
         assert json.loads(micro_report.read_text())['disable']['php'] == version
         print('PUBLIC DOWNLOAD PASS:', name, version, flush=True)

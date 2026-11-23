@@ -10,6 +10,7 @@ import tempfile
 p = argparse.ArgumentParser()
 p.add_argument('--micro', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
+p.add_argument('--without-swoole', action='store_true')
 p.add_argument('--enable-opcache-jit', action='store_true', help='Experimental: current and historical public micro binaries crash with OPcache enabled')
 args = p.parse_args()
 reports = {}
@@ -37,6 +38,8 @@ with tempfile.TemporaryDirectory(prefix='micro-jit-check-') as tmp:
         if len(lines) != 1:
             raise RuntimeError('Missing micro report')
         report = json.loads(lines[0])
+        if (report['swoole'] is not None) != (not args.without_swoole):
+            raise RuntimeError(f'Unexpected micro Swoole extension state: {report}')
         expect = mode != 'disable'
         if bool(report['after']['on']) != expect:
             raise RuntimeError(f'Unexpected micro JIT state: {report}')
@@ -52,4 +55,4 @@ for mode in modes[1:]:
         raise RuntimeError(f'micro JIT {mode} numeric results differ')
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(json.dumps(reports, indent=2) + '\n')
-print('PASS: micro production defaults, numeric results, coroutines and exit status')
+print('PASS: micro defaults, numeric results and exit status' + ('' if args.without_swoole else ', plus Swoole coroutine checks'))

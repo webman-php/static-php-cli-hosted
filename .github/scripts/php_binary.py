@@ -17,6 +17,10 @@ def current_jit_profile(info):
             and info.get("swoole_stdext") is False)
 
 
+def matches_swoole_profile(extensions, version):
+    return ("swoole" in extensions) == (not version.startswith("8.6."))
+
+
 def current_linux_profile(info, target):
     if info.get("upx_version") != UPX_VERSION:
         return False
@@ -69,9 +73,13 @@ def verify_runtime(cli, version):
     actual = metadata(cli)
     assert actual["version"] == version, actual
     assert "intl" not in actual["extensions"] and not actual["icu"], actual
+    assert matches_swoole_profile(actual["extensions"], version), actual
     subprocess.run([str(cli), "-n", "-r", '''
 foreach (["pcntl", "posix", "sockets", "openssl", "curl", "mbstring", "event", "redis", "apcu", "sodium", "gd", "imagick"] as $ext) {
     if (!extension_loaded($ext)) { throw new RuntimeException("Missing extension: " . $ext); }
+}
+if (array_diff(["mysql", "pgsql", "sqlite"], PDO::getAvailableDrivers())) {
+    throw new RuntimeException("Missing PDO driver");
 }
 $server = stream_socket_server("tcp://127.0.0.1:0", $errno, $error);
 if (!$server) { throw new RuntimeException($error); }

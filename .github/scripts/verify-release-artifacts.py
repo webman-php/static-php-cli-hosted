@@ -6,7 +6,7 @@ from pathlib import Path
 import tarfile
 import zipfile
 
-from php_binary import current_jit_profile, current_linux_profile
+from php_binary import current_jit_profile, current_linux_profile, matches_swoole_profile
 from php_releases import MANIFEST, build_targets, package_name, select_releases, validate_manifest
 
 root = Path(os.environ.get("RELEASE_DIR", "release"))
@@ -22,6 +22,7 @@ for release in releases:
         assert info["php_version"] == release["version"], base + ": stale PHP version"
         assert "intl" not in info["extensions"], base + ": obsolete intl profile"
         assert current_jit_profile(info), base + ": incompatible JIT profile"
+        assert matches_swoole_profile(info["extensions"], release["version"]), base + ": unexpected Swoole extension"
         if target["os"] != "linux":
             continue
         assert current_linux_profile(info, target), base + ": obsolete UPX profile"

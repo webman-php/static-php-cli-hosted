@@ -10,6 +10,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--php", default="php")
     p.add_argument("--swoole")
+    p.add_argument("--without-swoole", action="store_true")
     p.add_argument("--expect-jit", choices=["yes", "no"], required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--fixture", type=Path, default=Path(__file__).with_name("probe.php"))
@@ -36,6 +37,8 @@ def main():
         if len(lines) != 1:
             raise RuntimeError("Missing runtime report")
         report = json.loads(lines[0])
+        if (report["swoole"] is not None) != (not args.without_swoole):
+            raise RuntimeError(f"Unexpected Swoole extension state: {report}")
         expect = mode != "disable" and args.expect_jit == "yes"
         if bool(report["after"]["on"]) != expect:
             raise RuntimeError(f"Unexpected JIT state: {report}")
@@ -52,7 +55,7 @@ def main():
         raise RuntimeError(f"Plain CLI exit status changed: {plain.returncode}")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(reports, indent=2) + "\n")
-    print("PASS: numeric JIT, channels, exceptions, silence, TCP, coroutine exit, CLI exit")
+    print("PASS: numeric JIT and CLI exit" + ("" if args.without_swoole else ", plus Swoole coroutine checks"))
 
 
 if __name__ == "__main__":

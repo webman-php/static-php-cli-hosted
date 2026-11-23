@@ -127,6 +127,8 @@ def decide_updates(current, latest, published):
                 pending.append(f"{name}: {metadata['php_version']} -> {new['version']}")
             elif "intl" in metadata.get("extensions", []):
                 pending.append(f"{name}: replace the obsolete intl/ICU build")
+            elif branch == "8.6" and "swoole" in metadata.get("extensions", []):
+                pending.append(f"{name}: publish PHP 8.6 without Swoole")
             elif target["os"] == "linux" and not current_linux_profile(metadata, target):
                 pending.append(f"{name}: publish the UPX {UPX_VERSION} profile")
             elif not current_jit_profile(metadata):

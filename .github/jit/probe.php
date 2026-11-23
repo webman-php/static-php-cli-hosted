@@ -13,7 +13,7 @@ function silencedYield(): int {
     return $level;
 }
 
-check(extension_loaded('swoole'), 'Swoole missing');
+$hasSwoole = extension_loaded('swoole');
 check(!function_exists('swoole_call_array_method'), 'stdext still enabled');
 $disabledJit = ['enabled' => false, 'on' => false, 'buffer_size' => 0, 'buffer_free' => 0];
 $before = opcache_get_status(false)['jit'] ?? $disabledJit;
@@ -27,62 +27,66 @@ for ($i = 0; $i < 1200; $i++) {
     maybeExit(false);
 }
 $after = opcache_get_status(false)['jit'] ?? $disabledJit;
-$events = [];
-Swoole\Coroutine\run(function () use (&$events): void {
-    $channel = new Swoole\Coroutine\Channel(1);
-    Swoole\Coroutine::create(function () use ($channel): void {
+function checkCoroutines(): array {
+    $events = [];
+    Swoole\Coroutine\run(function () use (&$events): void {
+        $channel = new Swoole\Coroutine\Channel(1);
+        Swoole\Coroutine::create(function () use ($channel): void {
+            for ($i = 0; $i < 100; $i++) {
+                $channel->push(numeric($i % 10));
+                Swoole\Coroutine::sleep(0.001);
+            }
+        });
+        $total = 0;
         for ($i = 0; $i < 100; $i++) {
-            $channel->push(numeric($i % 10));
+            $total += $channel->pop();
+        }
+        check($total === array_sum(array_map('numeric', array_map(fn($i) => $i % 10, range(0, 99)))), 'channel result mismatch');
+        $events[] = 'channel';
+        try {
             Swoole\Coroutine::sleep(0.001);
+            throw new LogicException('after-yield');
+        } catch (LogicException $e) {
+            check($e->getMessage() === 'after-yield', 'exception changed');
+            $events[] = 'exception';
+        }
+        $normal = error_reporting();
+        @silencedYield();
+        check(error_reporting() === $normal, 'error_reporting not restored');
+        $events[] = 'silence';
+        $server = new Swoole\Coroutine\Socket(AF_INET, SOCK_STREAM, 0);
+        check($server->bind('127.0.0.1', 0) && $server->listen(), 'TCP listen failed');
+        $port = $server->getsockname()['port'];
+        Swoole\Coroutine::create(function () use ($server): void {
+            $peer = $server->accept(3);
+            check($peer !== false, 'TCP accept failed');
+            check($peer->recvAll(4, 3) === 'ping', 'TCP receive failed');
+            check($peer->sendAll('pong') === 4, 'TCP send failed');
+            $peer->close();
+            $server->close();
+        });
+        $client = new Swoole\Coroutine\Socket(AF_INET, SOCK_STREAM, 0);
+        check($client->connect('127.0.0.1', $port, 3), 'TCP connect failed');
+        $client->sendAll('ping');
+        check($client->recvAll(4, 3) === 'pong', 'TCP round trip failed');
+        $client->close();
+        $events[] = 'tcp';
+        try {
+            maybeExit(true);
+            throw new RuntimeException('exit did not throw');
+        } catch (Swoole\ExitException $e) {
+            check($e->getStatus() === 37, 'coroutine exit status changed');
+            check(($e->getFlags() & SWOOLE_EXIT_IN_COROUTINE) !== 0, 'coroutine exit flag missing');
+            $events[] = 'exit';
         }
     });
-    $total = 0;
-    for ($i = 0; $i < 100; $i++) {
-        $total += $channel->pop();
-    }
-    check($total === array_sum(array_map('numeric', array_map(fn($i) => $i % 10, range(0, 99)))), 'channel result mismatch');
-    $events[] = 'channel';
-    try {
-        Swoole\Coroutine::sleep(0.001);
-        throw new LogicException('after-yield');
-    } catch (LogicException $e) {
-        check($e->getMessage() === 'after-yield', 'exception changed');
-        $events[] = 'exception';
-    }
-    $normal = error_reporting();
-    @silencedYield();
-    check(error_reporting() === $normal, 'error_reporting not restored');
-    $events[] = 'silence';
-    $server = new Swoole\Coroutine\Socket(AF_INET, SOCK_STREAM, 0);
-    check($server->bind('127.0.0.1', 0) && $server->listen(), 'TCP listen failed');
-    $port = $server->getsockname()['port'];
-    Swoole\Coroutine::create(function () use ($server): void {
-        $peer = $server->accept(3);
-        check($peer !== false, 'TCP accept failed');
-        check($peer->recvAll(4, 3) === 'ping', 'TCP receive failed');
-        check($peer->sendAll('pong') === 4, 'TCP send failed');
-        $peer->close();
-        $server->close();
-    });
-    $client = new Swoole\Coroutine\Socket(AF_INET, SOCK_STREAM, 0);
-    check($client->connect('127.0.0.1', $port, 3), 'TCP connect failed');
-    $client->sendAll('ping');
-    check($client->recvAll(4, 3) === 'pong', 'TCP round trip failed');
-    $client->close();
-    $events[] = 'tcp';
-    try {
-        maybeExit(true);
-        throw new RuntimeException('exit did not throw');
-    } catch (Swoole\ExitException $e) {
-        check($e->getStatus() === 37, 'coroutine exit status changed');
-        check(($e->getFlags() & SWOOLE_EXIT_IN_COROUTINE) !== 0, 'coroutine exit flag missing');
-        $events[] = 'exit';
-    }
-});
-check($events === ['channel', 'exception', 'silence', 'tcp', 'exit'], 'coroutine checks incomplete');
+    check($events === ['channel', 'exception', 'silence', 'tcp', 'exit'], 'coroutine checks incomplete');
+    return $events;
+}
+$events = $hasSwoole ? checkCoroutines() : [];
 echo 'JIT_REPORT:', json_encode([
     'php' => PHP_VERSION,
-    'swoole' => swoole_version(),
+    'swoole' => $hasSwoole ? swoole_version() : null,
     'stdext' => function_exists('swoole_call_array_method'),
     'before' => $before,
     'after' => $after,

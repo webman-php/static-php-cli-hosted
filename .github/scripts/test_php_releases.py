@@ -61,6 +61,11 @@ class ReleaseChecksTest(unittest.TestCase):
         self.published["php-8.2-linux-x86_64"]["swoole_stdext"] = True
         self.assertEqual(["php-8.2-linux-x86_64: publish the compatible JIT profile"], releases.decide_updates(self.current, self.current, self.published))
 
+    def test_php86_replaces_packages_built_with_swoole(self):
+        self.published["php-8.6-linux-x86_64"]["extensions"] = ["event", "swoole"]
+        self.assertEqual(["php-8.6-linux-x86_64: publish PHP 8.6 without Swoole"],
+                         releases.decide_updates(self.current, self.current, self.published))
+
     def test_native_verified_arm_glibc_hatch_fallback_does_not_rebuild_weekly(self):
         info = self.published["php-8.4-linux-aarch64-glibc"]
         info.update(packing="none", packing_reason=UPX_ARM_GLIBC_FALLBACK)
