@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 
 from php_binary import UPX_VERSION, current_jit_profile, current_linux_profile
 
-BRANCHES = ("8.2", "8.3", "8.4", "8.5")
+BRANCHES = ("8.2", "8.3", "8.4", "8.5", "8.6")
 MANIFEST = Path(__file__).resolve().parents[1] / "php-releases.json"
 PUBLIC_URL = "https://download.workerman.net/php/"
 
@@ -25,7 +25,7 @@ def version_number(version, branch):
 
 def validate_manifest(releases):
     if not isinstance(releases, list) or len(releases) != len(BRANCHES):
-        raise ValueError("Manifest must contain PHP 8.2, 8.3, 8.4 and 8.5 exactly once")
+        raise ValueError(f"Manifest must contain PHP {', '.join(BRANCHES)} exactly once")
     if any(not isinstance(item, dict) for item in releases):
         raise ValueError("Invalid release entry")
     if [item.get("branch") for item in releases] != list(BRANCHES):
@@ -35,6 +35,15 @@ def validate_manifest(releases):
         if not isinstance(item.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"]):
             raise ValueError(f"Invalid SHA-256 for PHP {item['branch']}")
     return releases
+
+
+def select_releases(releases, branch):
+    if not branch:
+        return releases
+    selected = [item for item in releases if item["branch"] == branch]
+    if not selected:
+        raise ValueError(f"Unsupported PHP branch: {branch}")
+    return selected
 
 
 def build_targets(include_glibc=True):
@@ -153,9 +162,11 @@ def main():
     current = validate_manifest(json.loads(args.manifest.read_text()))
     if args.command == "plan":
         targets = build_targets(os.environ.get("INCLUDE_GLIBC", "true") == "true")
+        branch = os.environ.get("PHP_BRANCH", "")
         if os.environ.get("VALIDATION_ONLY") == "true":
-            current = [item for item in current if item["branch"] == "8.3"]
+            branch = branch or "8.3"
             targets = targets[:1]
+        current = select_releases(current, branch)
         write_outputs({
             "php": json.dumps(current, separators=(",", ":")),
             "targets": json.dumps(targets, separators=(",", ":")),
@@ -173,7 +184,8 @@ def main():
     write_outputs({"needed": str(bool(pending)).lower(), "manifest-changed": str(changed).lower()})
     lines = ["PHP release check", ""]
     lines += [f"PHP {item['branch']}: official stable {item['version']}" for item in latest]
-    lines += [""] + (pending if pending else ["All 24 published packages are current. No build or upload needed."])
+    count = len(latest) * len(build_targets())
+    lines += [""] + (pending if pending else [f"All {count} published packages are current. No build or upload needed."])
     summary = "\n".join(lines) + "\n"
     print(summary)
     if os.environ.get("GITHUB_STEP_SUMMARY"):

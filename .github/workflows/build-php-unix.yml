@@ -3,12 +3,16 @@ name: Build Self-Hosted PHP Binary (Unix)
 on:
   workflow_dispatch:
     inputs:
+      php-branch:
+        description: Build only this PHP branch (leave blank for all branches)
+        type: string
+        default: ''
       include-glibc:
         description: Also build Linux glibc 2.17-compatible binaries
         type: boolean
         default: true
       validation-only:
-        description: Validate PHP 8.3 Linux x86_64 only, without publishing
+        description: Validate Linux x86_64 musl only, without publishing (defaults to PHP 8.3)
         type: boolean
         default: false
 
@@ -17,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: static-php-unix-no-intl-${{ inputs.validation-only && 'validation' || 'release' }}
+  group: static-php-unix-no-intl-${{ inputs.validation-only && 'validation' || inputs.php-branch || 'release' }}
   cancel-in-progress: false
 
 env:
@@ -39,6 +43,7 @@ jobs:
         env:
           INCLUDE_GLIBC: ${{ inputs.include-glibc }}
           VALIDATION_ONLY: ${{ inputs.validation-only }}
+          PHP_BRANCH: ${{ inputs.php-branch }}
         run: python3 .github/scripts/php_releases.py plan
 
   build-release-artifacts:
@@ -47,8 +52,8 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SPC_TARGET: ${{ matrix.target.triple }}
-      # Keep JIT, using the traditional VM until PHP 8.5 TAILCALL hooks are compatible.
-      SPC_EXTRA_PHP_VARS: ${{ matrix.php.branch == '8.5' && 'php_cv_preserve_none=no' || '' }}
+      # Keep JIT with Swoole using the traditional VM on PHP 8.5 and 8.6.
+      SPC_EXTRA_PHP_VARS: ${{ (matrix.php.branch == '8.5' || matrix.php.branch == '8.6') && 'php_cv_preserve_none=no' || '' }}
     runs-on: ${{ matrix.target.runner }}
     timeout-minutes: 240
     strategy:
@@ -97,12 +102,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bin/spc download \
-            --with-php=${{ matrix.php.version }} \
-            --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
-            --custom-url=libevent:https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz \
-            --custom-url=ext-event:https://bitbucket.org/osmanov/pecl-event/get/3.1.6.tar.gz \
-            --for-extensions="$EXTENSIONS" --retry=5 --parallel=4
+          # SPC retries file transfers; also retry source discovery if an index is temporarily unavailable.
+          for attempt in 1 2 3; do
+            if bin/spc download \
+              --with-php=${{ matrix.php.version }} \
+              --custom-url=php-src:https://www.php.net/distributions/php-${{ matrix.php.version }}.tar.gz \
+              --custom-url=libevent:https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz \
+              --custom-url=ext-event:https://bitbucket.org/osmanov/pecl-event/get/3.1.6.tar.gz \
+              --for-extensions="$EXTENSIONS" --retry=5 --parallel=4; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            sleep $((attempt * 5))
+          done
           # The target's Zig runtime is separate from the PHP extension dependencies.
           if [ '${{ matrix.target.os }}' = linux ]; then
             bin/spc download --for-packages=llvm-compiler-rt --retry=5
@@ -117,8 +129,8 @@ jobs:
       - name: Verify actual JIT code generation and coroutine behavior
         run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --expect-jit yes --output validation/jit-unpacked.json
 
-      - name: Verify the PHP 8.5 VM regression reproducer
-        if: matrix.php.branch == '8.5'
+      - name: Check the tracing JIT regression with Swoole
+        if: matrix.php.branch == '8.5' || matrix.php.branch == '8.6'
         run: python3 .release-tools/.github/jit/run_checks.py --php "$PWD/buildroot/bin/php" --fixture .release-tools/.github/jit/repro-php85-jit.php --jit-modes tracing --expect-jit yes --output validation/jit-original-repro.json
 
       - name: Verify unpacked binaries contain no intl, ICU or oversized payload
@@ -162,7 +174,7 @@ jobs:
         if: matrix.target.os == 'linux' && matrix.target.arch == 'x86_64' && matrix.target.suffix == ''
         env:
           EXPECTED_PHP_VERSION: ${{ matrix.php.version }}
-          COMPARE_PUBLIC: ${{ inputs.validation-only }}
+          COMPARE_PUBLIC: ${{ inputs.validation-only && matrix.php.branch == '8.3' }}
         run: python3 .release-tools/.github/scripts/smoke-webman-bin.py
 
       - uses: actions/upload-artifact@v4
@@ -189,5 +201,6 @@ jobs:
     with:
       source-run-id: '${{ github.run_id }}'
       expected-packages: ${{ fromJSON(needs.plan.outputs.count) }}
+      php-branch: '${{ inputs.php-branch }}'
     secrets:
       DEPLOY_SERVER_SECRET_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}

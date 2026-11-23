@@ -23,7 +23,7 @@ while True:
         expected = {f"PHP {release['version']} / {target['os']}-{target['arch']}{target['suffix']}" for release in json.loads(MANIFEST.read_text()) for target in build_targets()}
         passed = {job['name'] for job in jobs if job['conclusion'] == 'success'}
         assert expected <= passed, "Source PHP build jobs did not all succeed: " + str(sorted(expected - passed))
-        print('All 24 source builds passed; original publisher stopped.', flush=True)
+        print(f'All {len(expected)} source builds passed; original publisher stopped.', flush=True)
         break
     if "--check-only" in sys.argv:
         break

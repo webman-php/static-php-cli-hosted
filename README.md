@@ -19,15 +19,15 @@ This repository is used to automatically compile static-php-cli related content 
 实际构建入口为本仓库的 [Actions → Build Self-Hosted PHP Binary (Unix) → Run workflow](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/build-php-unix.yml)。
 `walkor/static-php-cli` 是旧的编译器 fork，本仓库直接检出上游 SPC v3 的固定提交（含本次 PHP 安全版本的 IMAP、Swoole、静态 libpq 兼容修复）。
 
-各分支的完整构建版本与官方源码 SHA-256 统一保存在 [`.github/php-releases.json`](.github/php-releases.json)，由更新检查自动维护。
+PHP 8.2–8.6 的完整构建版本与官方源码 SHA-256 统一保存在 [`.github/php-releases.json`](.github/php-releases.json)，由更新检查自动维护。
 PHP 8.1 不再构建或列入支持列表。
 所有 Unix CLI 和 micro.sfx 均不包含 intl/ICU，保留原有其余扩展，不提供 intl 变体。Linux CLI 和已发布的 micro.sfx 默认使用固定版本 UPX 5.2.1 `--best`，macOS 不加壳。ARM64 glibc CLI 遇到该版本 UPX 的加载器边界问题时，保留已通过原生验证的未加壳文件，并在元数据中记录原因。
 CI 在加壳前直接检查 ICU 数据、扩展、实际大小（不超过 80 MiB）以及 glibc 2.17 符号基线；加壳后核对完整版本、全部扩展和 TCP 通信，并实际执行 webman 的 build:bin 和打包后的 HTTP 服务。CLI 和 micro.sfx 的加壳前后大小、SHA-256 记录在发布元数据中。
-可勾选 `validation-only`，先仅编译 PHP 8.3 Linux x86_64，比较旧版与新版的实际文件大小、同一 webman 应用的进程树 PSS 内存；此模式不会发布。
+可填写 `php-branch`，只编译并发布该分支的包。勾选 `validation-only` 时只编译 Linux x86_64 musl，默认 PHP 8.3，并跳过发布。PHP 8.3 的验证另外比较新旧二进制大小和同一 webman 应用的进程树 PSS 内存。
 
-Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，共 16 个组合。
+Unix 流程编译 Linux 和 macOS 的 x86_64、aarch64，完整矩阵共 20 个组合。
 每个任务从 PHP 官方地址重新下载源码，验证官方 SHA-256；编译后核对完整版本号、关键扩展和 TCP socket 通信。
-默认勾选 `include-glibc`，额外生成 glibc 2.17 兼容的 Linux x86_64/aarch64，共 24 个组合。glibc 包以 `-glibc.tar.gz` 结尾；默认下载文件仍为 musl 全静态版。
+默认勾选 `include-glibc`，额外生成 glibc 2.17 兼容的 Linux x86_64/aarch64，完整矩阵共 30 个组合。glibc 包以 `-glibc.tar.gz` 结尾；默认下载文件仍为 musl 全静态版。
 完整矩阵会从源码编译大量依赖，macOS 任务可能排队，需等待每个 job 的运行验证完成。
 glibc 产物还会通过 ELF 符号检查，确认所需 glibc 不高于 2.17。
 所有选定组合通过后才合并产物，调用可复用的 `Publish static PHP` workflow，使用已有 `DEPLOY_SERVER_SECRET_KEY` 上传服务器。
@@ -64,7 +64,7 @@ UPX 明显缩小磁盘文件；本次测试运行内存增加约 18.6 MiB。以�
 | 8.4.27 | 101.03 MB | 66.25 MB | 20.31 MB | 23.92 MB |
 | 8.5.12 | 108.32 MB | 70.39 MB | 20.76 MB | 24.37 MB |
 
-如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布要求原构建的全部 24 个 PHP 编译任务成功，并等待原发布进程结束；原上传失败或取消时也能复用已验证的产物。随后验证并发布完整 24 个组合，避免旧发布覆盖 UPX 文件。
+如已完成无 intl 的源码构建，可使用 [Pack existing Linux PHP with UPX](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/repack-php-upx.yml)，填入原构建 run ID，复用原始 Linux 产物加壳，保留 macOS 包。发布要求原构建的全部 30 个 PHP 编译任务成功，并等待原发布进程结束；原上传失败或取消时也能复用已验证的产物。
 
 UPX 5.2.1 的 ARM 加载器在可执行段末页没有 8 字节跳转空间时存在内部断点。此前通过原生 gdb/strace 在 PHP 8.4.27 ARM64 glibc 构建中定位到这个布局，兼容分支允许记录 `packing=none`、`packing_reason=upx-5.2.1-arm64-hatch` 并保留经过原生验证的文件。2026-10-29 的 JIT 修复构建改变了二进制布局，本轮全部 16 个 Linux CLI 和四个 x86_64 打包运行时均已通过 UPX 原生检查并发布。后续版本仍重新检查布局，必要时使用上述兼容分支；每周检查识别该策略，避免反复编译。
 
@@ -85,8 +85,8 @@ PHP 8.5 在本次 Zig 0.17 构建中会自动选择 TAILCALL VM；关闭 stdext 
 ### 每周自动更新
 
 [Check PHP releases weekly](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/check-php-updates.yml) 在每周一北京时间 04:23（UTC 周日 20:23）检查，也可手动 Run workflow。
-检查运行在 GitHub，不需要本地电脑开机。使用 PHP 官方 release JSON API，分别读取 8.2、8.3、8.4、8.5 的最新正式版及 tar.gz 的 SHA-256，不采用 RC/开发版，不自动增加新的 PHP 分支。
-与下载站全部 24 个 Linux/macOS 包的实际版本及构建配置比较；没有新版、包齐全且无 intl、UPX、JIT 修复标记均满足当前要求时，跳过构建和上传，不产生版本提交。旧包缺少当前修复标记时会补建一次；本轮发布后已确认检查结果为无需构建或上传。
+检查运行在 GitHub，使用 PHP 官方 release JSON API 读取 8.2–8.6 的最新正式版及 tar.gz 的 SHA-256。新分支通过版本清单手动纳入。
+与下载站全部 30 个 Linux/macOS 包的实际版本及构建配置比较。版本、包数量和无 intl、UPX、JIT 配置均符合要求时，跳过构建和上传。
 有新版时自动提交版本清单，并触发包含 musl、glibc 2.17、macOS 的完整 Unix 构建、验证和发布流程；上传前仍会备份旧下载文件。
 以上定时任务维护下载站的静态 PHP 包。Windows 保持手动构建；业务服务器的运行中 PHP 仍按需单独升级。
 如果上次编译或发布失败，即使清单已经提交了新版本，下次仍会根据下载站实际版本重试；已有构建或发布运行中时暂缓，避免重复任务。
@@ -97,7 +97,7 @@ PHP 8.5 在本次 Zig 0.17 构建中会自动选择 TAILCALL VM；关闭 stdext 
 失败时查看对应 job 的 Download/Build 日志与 `logs-*` artifact。网络等临时错误可重新运行失败任务；修改 workflow 或编译器提交后，必须重新 Run workflow，使新提交生效。发布 job 会等待全部编译通过。
 
 如果编译已通过、仅上传失败，可打开 [Actions → Publish static PHP → Run workflow](https://github.com/webman-php/static-php-cli-hosted/actions/workflows/deploy-php-unix.yml)，
-填入原构建的 run ID 和包数量（含 glibc 为 24，否则为 16），直接重试上传，无需重新编译。产物保留 30 天。
+填入原构建的 run ID 和包数量。完整矩阵含 glibc 为 30 个，否则为 20 个。单分支构建填写 `php-branch`，包数量为 6 个或 4 个。产物保留 30 天。
 部署公钥可在 Configure restricted SSH deployment 步骤查看；服务器授权入口位于 `.github/scripts/receive-static-php-rsync.py`，HTTPS 接收器为 `.github/scripts/receive-static-php-pull.py`，两者安装到 `/usr/local/libexec/` 并由 root 持有。接收器仅接受 GitHub 官方 artifact 存储域名，核对整个 artifact 和每个 PHP 文件的 SHA-256、文件名、版本及扩展清单，备份后才替换公开文件；不会运行上传的代码。
 
 上线后检查 https://download.workerman.net/php/list 与 https://www.workerman.net/download，

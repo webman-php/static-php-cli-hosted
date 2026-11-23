@@ -26,6 +26,7 @@ jobs:
     outputs:
       php: ${{ steps.targets.outputs.php }}
       targets: ${{ steps.targets.outputs.targets }}
+      count: ${{ steps.targets.outputs.count }}
     steps:
       - uses: actions/checkout@v4
       - name: Check source workflow
@@ -44,6 +45,7 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('php=' + json.dumps(php) + '\n')
               output.write('targets=' + json.dumps(targets) + '\n')
+              output.write('count=' + str(len(php) * len(build_targets())) + '\n')
           PYTHON
 
   pack-linux:
@@ -135,9 +137,12 @@ jobs:
           python3 - <<'PYTHON'
           import hashlib, json
           from pathlib import Path
+          import sys
+          sys.path.insert(0, '.github/scripts')
+          from php_releases import BRANCHES
           root = Path('dist')
           records = list(root.glob('*.json'))
-          assert len(records) == 8
+          assert len(records) == 2 * len(BRANCHES)
           for record in records:
               metadata = json.loads(record.read_text())
               assert 'intl' not in metadata['extensions']
@@ -152,10 +157,10 @@ jobs:
           retention-days: 30
 
   publish:
-    needs: [pack-linux, preserve-macos]
+    needs: [plan, pack-linux, preserve-macos]
     uses: ./.github/workflows/deploy-php-unix.yml
     with:
       source-run-id: '${{ github.run_id }}'
-      expected-packages: 24
+      expected-packages: ${{ fromJSON(needs.plan.outputs.count) }}
     secrets:
       DEPLOY_SERVER_SECRET_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}

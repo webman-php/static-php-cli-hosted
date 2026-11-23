@@ -25,6 +25,22 @@ class PullBoundaryTests(unittest.TestCase):
         info['expected_packages'] = 16
         self.assertEqual(tuple(map(len, receiver.expected_files(info))), (16, 88))
 
+    def test_php86_full_and_targeted_releases(self):
+        for targeted, count, files in ((False, 30, 150), (False, 20, 110), (True, 6, 30), (True, 4, 22)):
+            with self.subTest(targeted=targeted, count=count):
+                info = self.manifest()
+                if targeted:
+                    info['versions'] = {}
+                info['versions']['8.6'] = '8.6.0'
+                info['expected_packages'] = count
+                receiver.validate_request(info)
+                self.assertEqual(tuple(map(len, receiver.expected_files(info))), (count, files))
+
+    def test_reject_unapproved_branch_or_package_count(self):
+        for versions, count in (({'8.7': '8.7.0'}, 6), ({'8.6': '8.6.0'}, 30), ({'8.5': '8.5.13', '8.6': '8.6.0'}, 12)):
+            with self.subTest(versions=versions, count=count), self.assertRaises(AssertionError):
+                receiver.validate_request(dict(self.manifest(), versions=versions, expected_packages=count))
+
     def test_reject_ssrf_and_host_spoofing(self):
         for url in ('http://productionresultssa15.blob.core.windows.net/actions-results/a.zip',
                     'https://127.0.0.1/actions-results/a.zip',

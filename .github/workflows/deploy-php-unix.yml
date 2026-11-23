@@ -8,10 +8,14 @@ on:
         type: string
         required: true
       expected-packages:
-        description: Expected package count (24 with glibc, otherwise 16)
+        description: Expected number of packages in the selected build
         type: number
-        default: 24
+        default: 30
         required: true
+      php-branch:
+        description: PHP branch for a targeted build (leave blank for all branches)
+        type: string
+        default: ''
   workflow_call:
     inputs:
       source-run-id:
@@ -20,6 +24,9 @@ on:
       expected-packages:
         type: number
         required: true
+      php-branch:
+        type: string
+        default: ''
     secrets:
       DEPLOY_SERVER_SECRET_KEY:
         required: true
@@ -37,15 +44,17 @@ jobs:
     name: Publish verified binaries
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
+      PHP_BRANCH: ${{ inputs.php-branch }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate release inputs
         env:
           SOURCE_RUN_ID: ${{ inputs.source-run-id }}
-          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
         run: |
           [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
-          [[ "$EXPECTED_PACKAGES" == 16 || "$EXPECTED_PACKAGES" == 24 ]]
+          [[ "$EXPECTED_PACKAGES" =~ ^[0-9]+$ ]]
       - name: Configure restricted SSH deployment
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SERVER_SECRET_KEY }}
@@ -65,19 +74,12 @@ jobs:
           path: release/
           merge-multiple: true
       - name: Verify all archives
-        env:
-          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
         run: |
           set -euo pipefail
           test "$(find release -name '*.json' | wc -l)" -eq "$EXPECTED_PACKAGES"
           cd release
           for checksum in *.tar.gz.sha256; do sha256sum -c "$checksum"; done
-          for branch in 8.2 8.3 8.4 8.5; do
-            chmod 755 "php$branch" "php$branch.micro.sfx"
-          done
       - name: Verify current PHP, no-intl and Linux UPX profiles
-        env:
-          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
         run: python3 .github/scripts/verify-release-artifacts.py
       - name: Bundle verified files for the download server
         id: pull-bundle
@@ -93,7 +95,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT_ID: ${{ steps.pull-bundle.outputs.artifact-id }}
           ARTIFACT_SHA256: ${{ steps.pull-bundle.outputs.artifact-digest }}
-          EXPECTED_PACKAGES: ${{ inputs.expected-packages }}
         run: python3 .github/scripts/pull-php-release.py
       - name: Verify public downloads
         run: python3 .github/scripts/verify-public-php.py

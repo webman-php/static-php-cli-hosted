@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix='published-php-jit-') as temporary:
         subprocess.run(['python3', str(Path(__file__).with_name('run_checks.py')), '--php', str(cli),
                         '--expect-jit', 'yes', '--output', str(cli_report)], check=True)
         assert json.loads(cli_report.read_text())['tracing']['php'] == version
-        if branch == '8.5':
+        if branch in ('8.5', '8.6'):
             subprocess.run(['python3', str(Path(__file__).with_name('run_checks.py')), '--php', str(cli),
                             '--fixture', str(Path(__file__).with_name('repro-php85-jit.php')),
                             '--jit-modes', 'tracing', '--expect-jit', 'yes',

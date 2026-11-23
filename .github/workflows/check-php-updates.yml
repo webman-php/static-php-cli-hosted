@@ -71,4 +71,4 @@ jobs:
         run: |
           set -euo pipefail
           gh workflow run build-php-unix.yml --ref "$DEFAULT_BRANCH" -f include-glibc=true
-          echo 'Dispatched the verified 24-package Unix build and publication workflow.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Dispatched the full Unix build and publication workflow, including glibc.' >> "$GITHUB_STEP_SUMMARY"

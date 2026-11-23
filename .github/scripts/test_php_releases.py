@@ -30,7 +30,7 @@ class ReleaseChecksTest(unittest.TestCase):
         latest[-1]["sha256"] = "a" * 64
         pending = releases.decide_updates(self.current, latest, self.published)
         self.assertEqual(6, len(pending))
-        self.assertTrue(all("php-8.5-" in name for name in pending))
+        self.assertTrue(all(name.startswith(f"php-{latest[-1]['branch']}-") for name in pending))
 
     def test_unpublished_commit_retries(self):
         published = copy.deepcopy(self.published)
@@ -118,7 +118,7 @@ class ReleaseChecksTest(unittest.TestCase):
             releases.official_release("8.5", payload)
 
     def test_manifest_cannot_reintroduce_php81(self):
-        for branch in ("8.1", "8.6", "8.2"):
+        for branch in ("8.1", "8.7", "8.2"):
             manifest = copy.deepcopy(self.current)
             manifest[-1]["branch"] = branch
             with self.assertRaises(ValueError):
@@ -139,10 +139,10 @@ class ReleaseChecksTest(unittest.TestCase):
         latest, pending = releases.check_updates(self.current, fetch)
         self.assertEqual(self.current, latest)
         self.assertEqual([], pending)
-        self.assertEqual(28, len(calls))
+        self.assertEqual(len(self.current) + len(self.published), len(calls))
 
     def test_cli_plan_both_platform_sets(self):
-        for include_glibc, expected in (("true", 24), ("false", 16)):
+        for include_glibc, expected in (("true", 30), ("false", 20)):
             with self.subTest(include_glibc=include_glibc), tempfile.TemporaryDirectory() as temporary:
                 output = Path(temporary) / "output"
                 with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output), "INCLUDE_GLIBC": include_glibc}), patch("sys.argv", ["php_releases.py", "plan"]):
@@ -150,7 +150,18 @@ class ReleaseChecksTest(unittest.TestCase):
                 values = dict(line.split("=", 1) for line in output.read_text().splitlines())
                 self.assertEqual(str(expected), values["count"])
                 self.assertEqual(self.current, json.loads(values["php"]))
-                self.assertEqual(expected // 4, len(json.loads(values["targets"])))
+                self.assertEqual(expected // len(self.current), len(json.loads(values["targets"])))
+
+    def test_cli_targeted_php86_plan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output), "PHP_BRANCH": "8.6", "INCLUDE_GLIBC": "true"}), patch("sys.argv", ["php_releases.py", "plan"]):
+                releases.main()
+            values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+            self.assertEqual("6", values["count"])
+            self.assertEqual([item for item in self.current if item["branch"] == "8.6"], json.loads(values["php"]))
+            with self.assertRaisesRegex(ValueError, "Unsupported PHP branch"):
+                releases.select_releases(self.current, "8.7")
 
     def test_failed_network_check_does_not_change_manifest(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -187,7 +198,7 @@ class ReleaseChecksTest(unittest.TestCase):
 
     def test_cli_only_changes_manifest_after_successful_check(self):
         latest = copy.deepcopy(self.current)
-        latest[-1]["version"] = "8.5.999"
+        latest[-1]["version"] = latest[-1]["branch"] + ".999"
         latest[-1]["sha256"] = "f" * 64
         with tempfile.TemporaryDirectory() as temporary:
             manifest = Path(temporary) / "php-releases.json"

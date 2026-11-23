@@ -21,7 +21,7 @@ for checksum in checksums:
 
 # build:bin downloads the raw micro or ZIP rather than the canonical CLI tar.
 for binary in sorted(root.iterdir()):
-    if not re.fullmatch(r"php8\.[2-5](?:\.micro\.sfx)?(?:\.zip)?", binary.name):
+    if not re.fullmatch(r"php8\.[2-6](?:\.micro\.sfx)?(?:\.zip)?", binary.name):
         continue
     expected = hashlib.sha256(binary.read_bytes()).hexdigest()
     for attempt in range(4):

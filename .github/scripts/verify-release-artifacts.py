@@ -7,13 +7,13 @@ import tarfile
 import zipfile
 
 from php_binary import current_jit_profile, current_linux_profile
-from php_releases import MANIFEST, build_targets, package_name
+from php_releases import MANIFEST, build_targets, package_name, select_releases, validate_manifest
 
 root = Path(os.environ.get("RELEASE_DIR", "release"))
-releases = json.loads(MANIFEST.read_text())
+releases = select_releases(validate_manifest(json.loads(MANIFEST.read_text())), os.environ.get("PHP_BRANCH"))
 expected_count = int(os.environ["EXPECTED_PACKAGES"])
-targets = build_targets(expected_count == 24)
-assert expected_count in (16, 24)
+targets = build_targets(expected_count == len(releases) * len(build_targets()))
+assert expected_count == len(releases) * len(targets)
 assert len(list(root.glob("*.json"))) == expected_count
 for release in releases:
     for target in targets:
@@ -35,8 +35,10 @@ for release in releases:
             assert info["binary_bytes"] == info["unpacked_bytes"] and info["sha256"] == info["unpacked_sha256"]
         if target["arch"] == "x86_64" and not target["suffix"]:
             for name, record in [("php" + release["branch"], info), ("php" + release["branch"] + ".micro.sfx", info["micro"])]:
-                raw = (root / name).read_bytes()
+                binary_path = root / name
+                raw = binary_path.read_bytes()
                 assert hashlib.sha256(raw).hexdigest() == record["sha256"]
                 with zipfile.ZipFile(root / (name + ".zip")) as bundle:
                     assert bundle.namelist() == [name] and bundle.read(name) == raw
+                binary_path.chmod(0o755)
         print("Release profile verified:", base, flush=True)

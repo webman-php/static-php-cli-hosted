@@ -5,7 +5,7 @@ import subprocess
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
-from php_releases import MANIFEST
+from php_releases import MANIFEST, select_releases, validate_manifest
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -29,9 +29,10 @@ except HTTPError as error:
     download_url = error.headers['Location']
 else:
     raise RuntimeError('Expected a signed GitHub artifact redirect')
+releases = select_releases(validate_manifest(json.loads(MANIFEST.read_text())), os.environ.get('PHP_BRANCH'))
 manifest = dict(run_id=artifact['workflow_run']['id'], artifact_id=int(artifact_id), sha256=digest,
                 size=artifact['size_in_bytes'], expected_packages=int(os.environ['EXPECTED_PACKAGES']),
-                versions={release['branch']: release['version'] for release in json.loads(MANIFEST.read_text())},
+                versions={release['branch']: release['version'] for release in releases},
                 download_url=download_url)
 # Never print the signed URL or put it into shell arguments/process listings.
 subprocess.run(['ssh', '-F', '.github/php-deploy-ssh-config', 'php-origin',

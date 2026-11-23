@@ -23,6 +23,8 @@ PUBLIC = Path('/home/www/download.workerman.net/public/php')
 BACKUPS = Path('/home/www/php-release-backups')
 LIMIT = 2 * 1024 ** 3
 REQUIRED = {'curl', 'event', 'fileinfo', 'mbstring', 'openssl', 'pcntl', 'pdo_mysql', 'posix', 'sockets', 'sqlite3', 'zlib'}
+PREVIOUS_BRANCHES = {'8.2', '8.3', '8.4', '8.5'}
+SUPPORTED_BRANCHES = PREVIOUS_BRANCHES | {'8.6'}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -43,8 +45,10 @@ def validate_request(info):
     assert all(type(info[key]) is int and 0 < info[key] < 10 ** 14 for key in ('run_id', 'artifact_id'))
     assert re.fullmatch('[a-f0-9]{64}', info['sha256'])
     assert type(info['size']) is int and 0 < info['size'] <= LIMIT
-    assert info['expected_packages'] in (16, 24)
-    assert set(info['versions']) == {'8.2', '8.3', '8.4', '8.5'}
+    assert isinstance(info['versions'], dict)
+    branches = set(info['versions'])
+    assert branches in (PREVIOUS_BRANCHES, SUPPORTED_BRANCHES) or (len(branches) == 1 and branches <= SUPPORTED_BRANCHES)
+    assert info['expected_packages'] in (4 * len(branches), 6 * len(branches))
     for branch, version in info['versions'].items():
         assert re.fullmatch(re.escape(branch) + r'\.\d+', version)
     url = urlsplit(info['download_url'])
@@ -55,7 +59,7 @@ def validate_request(info):
 
 def expected_files(info):
     targets = ['linux-x86_64', 'linux-aarch64', 'macos-x86_64', 'macos-aarch64']
-    if info['expected_packages'] == 24:
+    if info['expected_packages'] == 6 * len(info['versions']):
         targets += ['linux-x86_64-glibc', 'linux-aarch64-glibc']
     bases = [f'php-{branch}-{target}' for branch in info['versions'] for target in targets]
     files = {base + suffix for base in bases for suffix in ('.tar.gz', '.tar.gz.sha256', '.json', '.extensions.txt')}
